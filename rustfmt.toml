@@ -1,0 +1,7 @@
+hard_tabs = true
+max_width = 120
+newline_style = "Unix"
+match_block_trailing_comma = true
+use_field_init_shorthand = true
+struct_lit_width = 40
+struct_variant_width = 60
