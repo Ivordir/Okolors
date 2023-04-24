@@ -148,16 +148,16 @@ where
 	}
 }
 
-/// Parse the convergence number and ensure it is >= 0.0
+/// Parse the convergence number and ensure it is >= `0.0`
 fn parse_valid_convergence(s: &str) -> Result<f32, String> {
 	parse_float_in_range(s, 0.0..)
 }
 
 /// The factor used to scale the lightness values for a better interface,
-/// as Okhsl lightness values are in the range 0.0..=1.0
+/// as Okhsl lightness values are in the range `0.0..=1.0`
 pub const LIGHTNESS_SCALE: f32 = 100.0;
 
-/// Parse a lumiance value and ensure it is in 0.0..=100.0
+/// Parse a lumiance value and ensure it is in `0.0..=100.0`
 fn parse_valid_lightness(s: &str) -> Result<f32, String> {
 	let min = LIGHTNESS_SCALE * Okhsl::<f32>::min_lightness();
 	let max = LIGHTNESS_SCALE * Okhsl::<f32>::max_lightness();
