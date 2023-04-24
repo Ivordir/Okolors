@@ -166,7 +166,7 @@ fn print_palette(options: &Options) {
 
 	match options.output {
 		FormatOutput::Hex => color_format_print(&colors_by_lightness, options.colorize, " ", |color| {
-			format!("#{:X}", color)
+			format!("#{color:X}")
 		}),
 
 		FormatOutput::Rgb => color_format_print(&colors_by_lightness, options.colorize, " ", |color| {

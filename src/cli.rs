@@ -144,7 +144,7 @@ where
 	if range.contains(&value) {
 		Ok(value)
 	} else {
-		Err(format!("{value} is not in {:?}", range))
+		Err(format!("{value} is not in {range:?}"))
 	}
 }
 
