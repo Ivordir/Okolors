@@ -162,7 +162,7 @@ fn update_assignments(
 	points: &mut PointDataVec,
 ) {
 	let k = centers.len();
-	for (&color, &n, center) in soa_zip!(data, [color, count], points.assignment.iter_mut()) {
+	for (&color, &n, center) in soa_zip!(data, [color, count], &mut points.assignment) {
 		let ci = usize::from(*center);
 		let dist = squared_distance(color, centers.centroid[ci]);
 
