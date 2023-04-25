@@ -47,3 +47,4 @@ TODO!
   If you want to perform other k-means related operations on images or prefer the CIELAB colorspace, then check it out!
 - The work by [Dr. Greg Hamerly and others](https://cs.baylor.edu/~hamerly/software/kmeans)
   was a very helpful resource for the k-means implementation in Ok Palette.
+- The awesome [palette](https://github.com/Ogeon/palette) library is used for all color conversions.
