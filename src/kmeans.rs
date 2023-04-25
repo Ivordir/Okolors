@@ -65,8 +65,6 @@ impl PointDataVec {
 struct CenterData {
 	/// The centroid point
 	centroid: Oklab,
-	/// Distance that the centroid moved last iteration
-	delta: f32,
 	/// Vector sum for all data points in this center
 	sum: Oklab<f64>,
 	/// Number of points in this center
@@ -79,7 +77,6 @@ impl CenterDataVec {
 		let k = usize::from(k);
 		Self {
 			centroid: Vec::new(),
-			delta: vec![0.0; k],
 			sum: vec![Oklab { l: 0.0, a: 0.0, b: 0.0 }; k],
 			count: vec![0; k],
 		}
@@ -235,8 +232,9 @@ fn update_assignments<D: ColorDifference>(
 }
 
 /// For each center, update its centroid using the vector sums and compute deltas
-fn update_centroids<D: ColorDifference>(rng: &mut impl Rng, centers: &mut CenterDataVec) {
-	for (centroid, delta, &n, sum) in soa_zip!(centers, [mut centroid, mut delta, count, sum]) {
+fn update_centroids<D: ColorDifference>(rng: &mut impl Rng, centers: &mut CenterDataVec) -> f32 {
+	let mut total_delta = 0.0;
+	for (centroid, &n, sum) in soa_zip!(centers, [mut centroid, count, sum]) {
 		let new_centroid = if n == 0 {
 			// Float literals below are the min and max values achievable when converting from Srgb colors
 			Oklab {
@@ -255,9 +253,11 @@ fn update_centroids<D: ColorDifference>(rng: &mut impl Rng, centers: &mut Center
 			}
 		};
 
-		*delta = D::squared_distance(*centroid, new_centroid).sqrt();
+		total_delta += D::squared_distance(*centroid, new_centroid).sqrt();
 		*centroid = new_centroid;
 	}
+
+	total_delta
 }
 
 /// Run a trial of sort k-means
@@ -289,11 +289,11 @@ fn kmeans<D: ColorDifference>(
 	loop {
 		update_distances::<D>(&centers.centroid, distances);
 		update_assignments::<D>(data, centers, distances, points);
-		update_centroids::<D>(&mut rng, centers);
+		let total_delta = update_centroids::<D>(&mut rng, centers);
 
 		iterations += 1;
 
-		if iterations >= max_iter || centers.delta.iter().sum::<f32>() <= convergence {
+		if iterations >= max_iter || total_delta <= convergence {
 			break;
 		}
 	}
