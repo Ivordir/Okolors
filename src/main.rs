@@ -73,7 +73,7 @@ fn get_thumbnail(img: ImageBuffer<Rgb<u8>, Vec<u8>>, max_pixels: u32) -> ImageBu
 	}
 }
 
-/// Process Srgb pixels to Oklab colors and `PixelDataVec`, scaling pixel counts by the log base, if provided
+/// Process Srgb pixels to Oklab colors and `PixelDataVec`
 fn process_pixels(pixels: &[Srgb<u8>]) -> PixelDataVec {
 	let mut data = PixelDataVec::new();
 
