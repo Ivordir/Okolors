@@ -45,6 +45,7 @@ pub enum ColorizeOutput {
 
 // No documentation, since it will appear in the help menu
 #[allow(clippy::missing_docs_in_private_items)]
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Parser)]
 #[command(version)]
 pub struct Options {
@@ -85,6 +86,12 @@ pub struct Options {
 	/// This is useful if you only care about colors resulting from the --lightness option.
 	#[arg(long)]
 	pub no_avg_lightness: bool,
+
+	/// Ignore lightness when performing k-means
+	///
+	/// This has the effect of bringing out more distinct colors and is useful alongside the --lightness option.
+	#[arg(long)]
+	pub ignore_lightness: bool,
 
 	/// The maximum image size, in number of pixels, before a thumbnail is created
 	///

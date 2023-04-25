@@ -151,6 +151,7 @@ fn print_palette(options: &Options) {
 			options.k,
 			options.max_iter,
 			options.convergence_threshold,
+			options.ignore_lightness,
 			options.seed,
 		)
 	);
