@@ -217,7 +217,7 @@ fn sorted_colors_grouped_by_lightness(kmeans: &KmeansResult, options: &Options) 
 		colors_by_lightness.push(vec_map(&avg_colors, |&(color, _)| to_srgb(color)));
 	}
 
-	for &l in &options.lightness {
+	for &l in &options.lightness_levels {
 		colors_by_lightness.push(vec_map(&avg_colors, |&(color, _)| {
 			to_srgb(Okhsl { lightness: l / LIGHTNESS_SCALE, ..color })
 		}));

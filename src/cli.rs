@@ -76,20 +76,23 @@ pub struct Options {
 
 	/// A comma separated list of additional lightness levels that each color should be printed in
 	///
-	/// Lightness refers to Okhsl lightness with values in the range 0..=100.
+	/// Lightness refers to Okhsl lightness with values in the range [0, 100].
 	/// A separate line is used for printing the colors at each lightness level.
 	#[arg(short, long, value_delimiter = ',', value_parser = parse_valid_lightness)]
-	pub lightness: Vec<f32>,
+	pub lightness_levels: Vec<f32>,
 
 	/// Do not print each color with its average lightness
 	///
-	/// This is useful if you only care about colors resulting from the --lightness option.
+	/// This is useful if you only care about colors resulting from the --lightness-levels option.
 	#[arg(long)]
 	pub no_avg_lightness: bool,
 
-	/// Ignore lightness when performing k-means
+	/// Ignore color lightness when performing k-means
 	///
-	/// This has the effect of bringing out more distinct colors and is useful alongside the --lightness option.
+	/// This option has the effect of bringing out more distinct hues and also tends to be faster.
+	/// If this option is not enabled, some of the average colors may differ primarily in lightness only.
+	/// So, if --lightness-levels are specified, then very similar colors may end up being printed.
+	/// This option fixes this by only comparing colors using their hue and saturation.
 	#[arg(long)]
 	pub ignore_lightness: bool,
 
