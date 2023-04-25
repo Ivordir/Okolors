@@ -24,9 +24,9 @@ impl ColorDifference for EuclideanDistance {
 }
 
 /// Euclidean Distance ignoring the lightness component
-struct ChromaDistance;
+struct ChromaHueDistance;
 
-impl ColorDifference for ChromaDistance {
+impl ColorDifference for ChromaHueDistance {
 	fn squared_distance(x: Oklab, y: Oklab) -> f32 {
 		let da = x.a - y.a;
 		let db = x.b - y.b;
@@ -332,7 +332,7 @@ pub fn run_trials(
 
 	if ignore_lightness {
 		(0..trials)
-			.map(|i| kmeans::<ChromaDistance>(data, &mut state, k, max_iter, convergence, seed + u64::from(i)))
+			.map(|i| kmeans::<ChromaHueDistance>(data, &mut state, k, max_iter, convergence, seed + u64::from(i)))
 			.min_by(|x, y| f64::total_cmp(&x.variance, &y.variance))
 	} else {
 		(0..trials)
