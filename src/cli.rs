@@ -43,8 +43,9 @@ pub enum ColorizeOutput {
 	Bg,
 }
 
-// No documentation, since it will appear in the help menu
-#[allow(clippy::missing_docs_in_private_items)]
+/// Generate a color palette for an image by performing k-means clustering in the Oklab color space.
+///
+/// Ok Palette also supports outputting the resulting colors in multiple Okhsl lightness levels.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Parser)]
 #[command(version)]
