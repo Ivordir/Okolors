@@ -317,27 +317,37 @@ fn kmeans<D: ColorDifference>(
 }
 
 /// Run multiple trials of k-means, taking the trial with the lowest variance
-pub fn run_trials(
+fn run_trials<D: ColorDifference>(
 	data: &PixelDataVec,
 	trials: u32,
 	k: u8,
 	max_iter: u32,
 	convergence: f32,
-	ignore_lightness: bool,
 	seed: u64,
 ) -> KmeansResult {
 	// data.len() <= u32::MAX because of `get_thumbnail` and `process_pixels`
 	#[allow(clippy::cast_possible_truncation)]
 	let mut state = KmeansState::new(k, data.len() as u32);
 
+	(0..trials)
+		.map(|i| kmeans::<D>(data, &mut state, k, max_iter, convergence, seed + u64::from(i)))
+		.min_by(|x, y| f64::total_cmp(&x.variance, &y.variance))
+		.expect("at least one trial")
+}
+
+/// Run multiple trials of k-means, taking the trial with the lowest variance
+pub fn run(
+	data: &PixelDataVec,
+	ignore_lightness: bool,
+	trials: u32,
+	k: u8,
+	max_iter: u32,
+	convergence: f32,
+	seed: u64,
+) -> KmeansResult {
 	if ignore_lightness {
-		(0..trials)
-			.map(|i| kmeans::<ChromaHueDistance>(data, &mut state, k, max_iter, convergence, seed + u64::from(i)))
-			.min_by(|x, y| f64::total_cmp(&x.variance, &y.variance))
+		run_trials::<ChromaHueDistance>(data, trials, k, max_iter, convergence, seed)
 	} else {
-		(0..trials)
-			.map(|i| kmeans::<EuclideanDistance>(data, &mut state, k, max_iter, convergence, seed + u64::from(i)))
-			.min_by(|x, y| f64::total_cmp(&x.variance, &y.variance))
+		run_trials::<EuclideanDistance>(data, trials, k, max_iter, convergence, seed)
 	}
-	.expect("at least one trial")
 }

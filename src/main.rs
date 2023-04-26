@@ -145,13 +145,13 @@ fn print_palette(options: &Options) {
 
 	let kmeans = time!(
 		kmeans,
-		kmeans::run_trials(
+		kmeans::run(
 			&data,
+			options.ignore_lightness,
 			options.trials,
 			options.k,
 			options.max_iter,
 			options.convergence_threshold,
-			options.ignore_lightness,
 			options.seed,
 		)
 	);
