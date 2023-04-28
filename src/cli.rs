@@ -53,10 +53,6 @@ pub struct Options {
 	/// The path to the input image
 	pub image: PathBuf,
 
-	/// The (maximum) number of colors to find
-	#[arg(short, default_value_t = 8, value_parser = clap::value_parser!(u8).range(1..))]
-	pub k: u8,
-
 	/// The format to print the colors in
 	#[arg(short, long, default_value = "hex")]
 	pub output: FormatOutput,
@@ -97,14 +93,9 @@ pub struct Options {
 	#[arg(long)]
 	pub ignore_lightness: bool,
 
-	/// The maximum image size, in number of pixels, before a thumbnail is created
-	///
-	/// Unfortunately, this option may reduce the color accuracy,
-	/// as multiple pixels in the original image are interpolated to form a pixel in the thumbnail.
-	/// This option is intended for reducing the time needed for large images,
-	/// but it can also be used to provide fast, inaccurate results for any image.
-	#[arg(short = 'p', long, default_value_t = u32::MAX, value_parser = clap::value_parser!(u32).range(1..))]
-	pub max_pixels: u32,
+	/// The (maximum) number of colors to find
+	#[arg(short, default_value_t = 8, value_parser = clap::value_parser!(u8).range(1..))]
+	pub k: u8,
 
 	/// The number of trials of k-means to run
 	///
@@ -136,6 +127,15 @@ pub struct Options {
 	/// You can use the --verbose option to see how many iterations the best k-means trial took.
 	#[arg(short = 'i', long, default_value_t = 128)]
 	pub max_iter: u32,
+
+	/// The maximum image size, in number of pixels, before a thumbnail is created
+	///
+	/// Unfortunately, this option may reduce the color accuracy,
+	/// as multiple pixels in the original image are interpolated to form a pixel in the thumbnail.
+	/// This option is intended for reducing the time needed for large images,
+	/// but it can also be used to provide fast, inaccurate results for any image.
+	#[arg(short = 'p', long, default_value_t = u32::MAX, value_parser = clap::value_parser!(u32).range(1..))]
+	pub max_pixels: u32,
 
 	/// The seed value used for the random number generator
 	#[arg(long, default_value_t = 0)]
