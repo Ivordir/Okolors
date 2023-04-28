@@ -147,12 +147,12 @@ fn print_palette(options: &Options) {
 		kmeans,
 		kmeans::run(
 			&data,
-			options.ignore_lightness,
 			options.trials,
 			options.k,
-			options.max_iter,
 			options.convergence_threshold,
+			options.max_iter,
 			options.seed,
+			options.ignore_lightness,
 		)
 	);
 

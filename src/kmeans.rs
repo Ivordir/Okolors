@@ -338,16 +338,16 @@ fn run_trials<D: ColorDifference>(
 /// Run multiple trials of k-means, taking the trial with the lowest variance
 pub fn run(
 	data: &PixelDataVec,
-	ignore_lightness: bool,
 	trials: u32,
 	k: u8,
+	convergence_threshold: f32,
 	max_iter: u32,
-	convergence: f32,
 	seed: u64,
+	ignore_lightness: bool,
 ) -> KmeansResult {
 	if ignore_lightness {
-		run_trials::<ChromaHueDistance>(data, trials, k, max_iter, convergence, seed)
+		run_trials::<ChromaHueDistance>(data, trials, k, max_iter, convergence_threshold, seed)
 	} else {
-		run_trials::<EuclideanDistance>(data, trials, k, max_iter, convergence, seed)
+		run_trials::<EuclideanDistance>(data, trials, k, max_iter, convergence_threshold, seed)
 	}
 }
