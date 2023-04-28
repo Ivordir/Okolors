@@ -174,7 +174,7 @@ fn print_palette(options: &Options) {
 			format!("({},{},{})", color.red, color.green, color.blue)
 		}),
 
-		FormatOutput::Palette => format_print(&colors_by_lightness, "", |color| {
+		FormatOutput::Swatch => format_print(&colors_by_lightness, "", |color| {
 			"   ".on_truecolor(color.red, color.green, color.blue).to_string()
 		}),
 	}

@@ -18,7 +18,7 @@ pub enum FormatOutput {
 	/// sRGB (r,g,b) triple
 	Rgb,
 	/// Whitespace with true color background
-	Palette,
+	Swatch,
 }
 
 /// Sort orders for the final colors
