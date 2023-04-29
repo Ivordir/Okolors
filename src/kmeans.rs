@@ -85,7 +85,6 @@ impl CenterDataVec {
 	/// Reset data for the next k-means trial
 	fn reset(&mut self) {
 		self.centroid.clear();
-		// deltas are recomputed every iteration
 		self.sum.fill(Oklab { l: 0.0, a: 0.0, b: 0.0 });
 		self.count.fill(0);
 	}
