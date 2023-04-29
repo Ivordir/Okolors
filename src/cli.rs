@@ -101,7 +101,7 @@ pub struct Options {
 	///
 	/// k-means can get stuck in a local minimum, so you may want to run a few or more trials to get better results.
 	/// The trial with the lowest variance is picked.
-	#[arg(short, long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..))]
+	#[arg(short = 'n', long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..))]
 	pub trials: u32,
 
 	/// The threshold number used to determine k-means convergence
@@ -121,7 +121,7 @@ pub struct Options {
 	#[arg(short = 'e', long, default_value_t = 0.05, value_parser = parse_valid_convergence)]
 	pub convergence_threshold: f32,
 
-	/// The maximum number of iterations for k-means
+	/// The maximum number of iterations for all k-means trials
 	///
 	/// If you have a very large image and are not using the --max-pixels options, you may have to set this option higher.
 	/// You can use the --verbose option to see how many iterations the best k-means trial took.
