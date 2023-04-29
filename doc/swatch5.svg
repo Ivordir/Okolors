@@ -1,4 +1,4 @@
-<svg height="40" viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg">
+<svg height="200" viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg">
   <rect id="swatch" width="40" height="40"/>
   <use href="#swatch" x="0" fill="rgb(41,40,39)"/>
   <use href="#swatch" x="40" fill="rgb(8,18,19)"/>
