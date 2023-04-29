@@ -4,7 +4,7 @@ Still a WIP, but...
 
 Okolors takes an image and produces a color palette consisting of the image's average colors.
 It does this by converting the image's pixels to the [Oklab](https://bottosson.github.io/posts/oklab/) color space
-and then performing k-means clustering.
+and then performing [k-means clustering](https://en.wikipedia.org/wiki/K-means_clustering).
 By using a proper color space for color difference and a more accurate clustering algorithm,
 this helps to ensure that the generated palette is truly representative of the input image.
 
@@ -14,7 +14,7 @@ For example, you can specify a low lightness level for background colors
 and a high lightness for foreground text in order to achieve a certain contrast ratio.
 The [Okhsl](https://bottosson.github.io/posts/colorpicker/) color space is ideal for this,
 because as the lightness is changed, Okhsl preserves the hue and saturation of the color
-(better than other color spaces like HSL). You can see some of the [examples]() below.
+(better than other color spaces like HSL). You can see some of the [examples](#examples) below.
 
 ## Notes
 
