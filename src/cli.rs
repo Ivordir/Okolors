@@ -45,7 +45,7 @@ pub enum ColorizeOutput {
 
 /// Generate a color palette for an image by performing k-means clustering in the Oklab color space.
 ///
-/// Ok Palette also supports outputting the resulting colors in multiple Okhsl lightness levels.
+/// Okolors also supports outputting the resulting colors in multiple Okhsl lightness levels.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Parser)]
 #[command(version)]

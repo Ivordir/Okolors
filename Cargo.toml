@@ -1,11 +1,11 @@
 [package]
-name = "ok-palette"
+name = "okolors"
 version = "0.1.0"
 authors = ["Ivordir <Ivordir@pm.me>"]
 edition = "2021"
 description = "Generates a color palette for an image by performing k-means clustering in the Oklab color space. Supports outputting the resulting colors in multiple Okhsl lightness levels."
-homepage = "https://github.com/Ivordir/ok-palette"
-repository = "https://github.com/Ivordir/ok-palette"
+homepage = "https://github.com/Ivordir/okcolors"
+repository = "https://github.com/Ivordir/okcolors"
 license = "MIT"
 keywords = ["palette", "theme", "color", "oklab", "kmeans"]
 categories = ["command-line-utilities", "multimedia::images"]

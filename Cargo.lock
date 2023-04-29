@@ -632,7 +632,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ok-palette"
+name = "okolors"
 version = "0.1.0"
 dependencies = [
  "clap",
