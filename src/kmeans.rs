@@ -172,8 +172,8 @@ fn update_distances<D: ColorDifference>(centroids: &[Oklab], distances: &mut [(u
 		}
 	}
 
-	for i in 0..k {
-		distances[(i * k)..((i + 1) * k)].sort_by(|(_, x), (_, y)| f32::total_cmp(x, y));
+	for row in distances.chunks_exact_mut(k) {
+		row.sort_by(|(_, x), (_, y)| f32::total_cmp(x, y));
 	}
 }
 
