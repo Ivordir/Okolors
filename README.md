@@ -41,7 +41,7 @@ and/or possibly SIMD once [portable-simd](https://github.com/rust-lang/rust/issu
 
 Let's use the following photo for the examples below.
 
-![Jewel Changi Aiport Waterfall](doc/Jewel%20Changi.jpg)
+![Jewel Changi Aiport Waterfall](docs/Jewel%20Changi.jpg)
 
 Running Okolors for this image with the default options gives the following sRGB hex values.
 
@@ -57,7 +57,7 @@ then you can use `-o swatch` to see blocks of the output colors.
 > ok-palette 'img/Jewel Changi.jpg' -o swatch
 ```
 
-![](doc/swatch1.svg)
+![](docs/swatch1.svg)
 
 We can increase the color accuracy by increasing the number of trials, `-n`, and lowering the convergence threshold, `-e`.
 
@@ -65,7 +65,7 @@ We can increase the color accuracy by increasing the number of trials, `-n`, and
 > ok-palette 'img/Jewel Changi.jpg' -n 4 -e 0.01 -o swatch
 ```
 
-![](doc/swatch2.svg)
+![](docs/swatch2.svg)
 
 Oh no, that's too accurate!
 The image is made up of mostly black, white, and blue-green,
@@ -77,7 +77,7 @@ We can try increasing k, but now we have a lot of colors, and some are very simi
 > ok-palette 'img/Jewel Changi.jpg' -k 12 -n 4 -e 0.01 -o swatch
 ```
 
-![](doc/swatch3.svg)
+![](docs/swatch3.svg)
 
 Alternatively, let's ignore color lightness to merge similar colors together, thereby bringing out other colors in the process.
 
@@ -85,7 +85,7 @@ Alternatively, let's ignore color lightness to merge similar colors together, th
 > ok-palette 'img/Jewel Changi.jpg' --ignore-lightness -n 4 -e 0.01 -o swatch
 ```
 
-![](doc/swatch4.svg)
+![](docs/swatch4.svg)
 
 That's better! Unfortunately, now white and black have been merged into a dark gray. We can, however, specify additional lightness levels to print the colors in with `-l`.
 
@@ -93,7 +93,7 @@ That's better! Unfortunately, now white and black have been merged into a dark g
 > ok-palette 'img/Jewel Changi.jpg' -l 10,30,50,70 --ignore-lightness -n 4 -e 0.01 -o swatch
 ```
 
-![](doc/swatch5.svg)
+![](docs/swatch5.svg)
 
 # References
 
