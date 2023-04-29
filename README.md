@@ -43,7 +43,7 @@ Let's use the following photo for the examples below.
 
 ![Jewel Changi Aiport Waterfall](doc/Jewel%20Changi.jpg)
 
-Running Ok Palette for this image with the default options gives the following sRGB hex values:
+Running Ok Palette for this image with the default options gives the following sRGB hex values.
 
 ```bash
 > ok-palette 'img/Jewel Changi.jpg'
@@ -59,10 +59,10 @@ then you can use `-o swatch` to see blocks of the output colors.
 
 ![](doc/swatch1.svg)
 
-We can increase the color accuracy by increasing the number of trials, `-t`, and lowering the convergence threshold, `-e`.
+We can increase the color accuracy by increasing the number of trials, `-n`, and lowering the convergence threshold, `-e`.
 
 ```bash
-> ok-palette 'img/Jewel Changi.jpg' -t 4 -e 0.01 -o swatch
+> ok-palette 'img/Jewel Changi.jpg' -n 4 -e 0.01 -o swatch
 ```
 
 ![](doc/swatch2.svg)
@@ -74,15 +74,15 @@ so the other colors are hardly coming through anymore.
 We can try increasing k, but now we have a lot of colors, and some are very similar.
 
 ```bash
-> ok-palette 'img/Jewel Changi.jpg' -k 12 -t 4 -e 0.01 -o swatch
+> ok-palette 'img/Jewel Changi.jpg' -k 12 -n 4 -e 0.01 -o swatch
 ```
 
 ![](doc/swatch3.svg)
 
-Alternatively, let's ignore color lightness to merge similar colors together, thereby bringing out other colors in the process:
+Alternatively, let's ignore color lightness to merge similar colors together, thereby bringing out other colors in the process.
 
 ```bash
-> ok-palette 'img/Jewel Changi.jpg' --ignore-lightness -t 4 -e 0.01 -o swatch
+> ok-palette 'img/Jewel Changi.jpg' --ignore-lightness -n 4 -e 0.01 -o swatch
 ```
 
 ![](doc/swatch4.svg)
@@ -90,7 +90,7 @@ Alternatively, let's ignore color lightness to merge similar colors together, th
 That's better! Unfortunately, now white and black have been merged into a dark gray. We can, however, specify additional lightness levels to print the colors in with `-l`.
 
 ```bash
-> ok-palette 'img/Jewel Changi.jpg' -l 10,30,50,70 --ignore-lightness -t 4 -e 0.01 -o swatch
+> ok-palette 'img/Jewel Changi.jpg' -l 10,30,50,70 --ignore-lightness -n 4 -e 0.01 -o swatch
 ```
 
 ![](doc/swatch5.svg)
