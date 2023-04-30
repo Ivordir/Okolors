@@ -41,7 +41,7 @@ and/or possibly SIMD once [portable-simd](https://github.com/rust-lang/rust/issu
 
 Let's use the following photo for the examples below.
 
-![Jewel Changi Aiport Waterfall](docs/Jewel%20Changi.jpg)
+![Jewel Changi Airport Waterfall](docs/Jewel%20Changi.jpg)
 
 Running Okolors for this image with the default options gives the following sRGB hex values.
 
