@@ -2,7 +2,7 @@
 //! Also supports outputting the resulting colors in multiple Okhsl lightness levels.
 
 #![deny(unsafe_code)]
-#![warn(clippy::cargo, clippy::nursery, clippy::pedantic)]
+#![warn(clippy::pedantic, clippy::cargo)]
 #![warn(clippy::use_debug, clippy::dbg_macro, clippy::todo, clippy::unimplemented)]
 #![warn(clippy::unwrap_used, clippy::unwrap_in_result)]
 #![warn(clippy::unneeded_field_pattern, clippy::rest_pat_in_fully_bound_structs)]
@@ -10,34 +10,18 @@
 #![warn(clippy::str_to_string, clippy::string_to_string, clippy::string_slice)]
 #![warn(missing_docs, clippy::missing_docs_in_private_items, rustdoc::all)]
 #![warn(clippy::float_cmp_const, clippy::lossy_float_literal)]
-#![allow(clippy::suboptimal_flops)]
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::enum_glob_use)]
 #![allow(clippy::unreadable_literal)]
-// Clippy issue? This lint triggers for `derive(StructOfArray)` macro
-#![allow(clippy::range_plus_one)]
 
 use clap::Parser;
 use colored::Colorize;
 use image::{ImageBuffer, Rgb};
-use palette::{FromColor, Okhsl, Oklab, Srgb};
-use soa_derive::StructOfArray;
-use std::{collections::HashMap, path::PathBuf};
+use palette::{FromColor, Okhsl, Srgb};
+use std::path::PathBuf;
 
 mod cli;
 use cli::{ColorizeOutput, FormatOutput, Options, SortOutput, LIGHTNESS_SCALE};
-
-mod kmeans;
-use kmeans::KmeansResult;
-
-/// Processed image pixel data
-#[derive(StructOfArray)]
-pub struct PixelData {
-	/// The Oklab color for this data point
-	pub color: Oklab,
-	/// The number of duplicate Srgb pixels
-	pub count: u32,
-}
 
 /// Load Srgb pixels from an image path
 fn load_image(path: &PathBuf) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
@@ -56,6 +40,8 @@ fn get_thumbnail(img: ImageBuffer<Rgb<u8>, Vec<u8>>, max_pixels: u32) -> ImageBu
 	let pixels = img.pixels().len() as u64;
 	if pixels <= u64::from(max_pixels) {
 		img
+	} else if max_pixels == 0 {
+		ImageBuffer::new(0, 0)
 	} else {
 		// (u64 as f64) only gives innaccurate results for very large u64
 		// I.e, only when pixels is in the order of quintillions
@@ -71,38 +57,6 @@ fn get_thumbnail(img: ImageBuffer<Rgb<u8>, Vec<u8>>, max_pixels: u32) -> ImageBu
 			(f64::from(height) * scale) as u32,
 		)
 	}
-}
-
-/// Process Srgb pixels to Oklab colors and `PixelDataVec`
-fn process_pixels(pixels: &[Srgb<u8>]) -> PixelDataVec {
-	let mut data = PixelDataVec::new();
-
-	// Converting from Srgb to Oklab is expensive.
-	// Memoizing the results almost halves the time needed.
-	// This also groups identical pixels, speeding up k-means.
-
-	// Packed Srgb -> data index
-	let mut memo: HashMap<u32, u32> = HashMap::new();
-
-	// Convert to Oklab color, merging entries as necessary
-	for srgb in pixels {
-		let key = srgb.into_u32::<palette::rgb::channels::Rgba>();
-		let index = *memo.entry(key).or_insert_with(|| {
-			let color = Oklab::from_color(srgb.into_format());
-
-			// pixels.len() < u32::MAX because of `get_thumbnail`
-			// Also, there are only (2^8)^3 < u32::MAX possible sRGB colors and we are grouping the same colors together
-			#[allow(clippy::cast_possible_truncation)]
-			let index = data.len() as u32;
-
-			data.push(PixelData { color, count: 0 });
-			index
-		});
-
-		data.count[index as usize] += 1;
-	}
-
-	data
 }
 
 /// Record the running time of a function and print the elapsed time
@@ -134,18 +88,16 @@ fn main() {
 fn print_palette(options: &Options) {
 	let img = time!(loading, load_image(&options.image));
 
-	assert!(img.pixels().len() > 0, "The provided image is empty!");
-
 	let img = time!(thumbnail, get_thumbnail(img, options.max_pixels));
 
 	let data = time!(
 		preprocessing,
-		process_pixels(palette::cast::from_component_slice(img.as_raw()))
+		okolors::srgb_to_oklab_counts(palette::cast::from_component_slice(img.as_raw()))
 	);
 
 	let kmeans = time!(
 		kmeans,
-		kmeans::run(
+		okolors::from_oklab_counts(
 			&data,
 			options.trials,
 			options.k,
@@ -192,7 +144,7 @@ fn to_srgb(okhsl: Okhsl) -> Srgb<u8> {
 
 /// Convert Oklab colors from k-means to Okhsl, sorting by the given metric.
 /// Then, create rows for each lightness and convert into Srgb.
-fn sorted_colors_grouped_by_lightness(kmeans: &KmeansResult, options: &Options) -> Vec<Vec<Srgb<u8>>> {
+fn sorted_colors_grouped_by_lightness(kmeans: &okolors::KmeansResult, options: &Options) -> Vec<Vec<Srgb<u8>>> {
 	let mut avg_colors = kmeans
 		.centroids
 		.iter()

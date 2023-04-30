@@ -1,6 +1,6 @@
 //! Provides the implementation for (sort) k-means
 
-use crate::PixelDataVec;
+use crate::OklabCounts;
 use palette::Oklab;
 use rand::{Rng, SeedableRng};
 use soa_derive::{soa_zip, StructOfArray};
@@ -115,19 +115,31 @@ impl KmeansState {
 pub struct KmeansResult {
 	/// Variance achieved by these centroids
 	pub variance: f64,
-	/// Final centroids
+	/// Final centroid colors
 	pub centroids: Vec<Oklab>,
-	/// Number of points in each centroid
+	/// Number of pixels in each centroid
 	pub counts: Vec<u32>,
 	/// Number of elapsed iterations
 	pub iterations: u32,
+}
+
+impl KmeansResult {
+	/// Create an empty result, representing that no k-means trials were able to be run
+	const fn empty() -> Self {
+		Self {
+			variance: 0.0,
+			centroids: Vec::new(),
+			counts: Vec::new(),
+			iterations: 0,
+		}
+	}
 }
 
 /// Choose the starting centroids using the k-means++ algorithm
 fn kmeans_plus_plus<D: ColorDifference>(
 	k: u8,
 	mut rng: &mut impl Rng,
-	data: &[Oklab],
+	colors: &[Oklab],
 	centroids: &mut Vec<Oklab>,
 	weights: &mut [f32],
 ) {
@@ -137,17 +149,17 @@ fn kmeans_plus_plus<D: ColorDifference>(
 	};
 
 	// Pick any random first centroid
-	centroids.push(data[rng.gen_range(0..data.len())]);
+	centroids.push(colors[rng.gen_range(0..colors.len())]);
 
 	// Pick each next centroid with a weighted probability based off the squared distance to its closest centroid
 	for i in 1..usize::from(k) {
 		let centroid = centroids[i - 1];
-		for (weight, &color) in weights.iter_mut().zip(data) {
+		for (weight, &color) in weights.iter_mut().zip(colors) {
 			*weight = f32::min(*weight, D::squared_distance(color, centroid));
 		}
 
 		match WeightedIndex::new(weights.iter().copied()) {
-			Ok(sampler) => centroids.push(data[sampler.sample(&mut rng)]),
+			Ok(sampler) => centroids.push(colors[sampler.sample(&mut rng)]),
 			Err(AllWeightsZero) => return, // all points exactly match a centroid
 			Err(InvalidWeight | NoItem | TooMany) => {
 				unreachable!("distances are >= 0 and data.len() is in 1..=u32::MAX")
@@ -179,13 +191,13 @@ fn update_distances<D: ColorDifference>(centroids: &[Oklab], distances: &mut [(u
 
 /// For each data point, update its assigned center
 fn update_assignments<D: ColorDifference>(
-	data: &PixelDataVec,
+	oklab: &OklabCounts,
 	centers: &mut CenterDataVec,
 	distances: &[(u8, f32)],
 	points: &mut PointDataVec,
 ) {
 	let k = centers.len();
-	for (&color, &n, center) in soa_zip!(data, [color, count], &mut points.assignment) {
+	for (&color, &n, center) in soa_zip!(oklab, [colors, counts], &mut points.assignment) {
 		let ci = usize::from(*center);
 		let dist = D::squared_distance(color, centers.centroid[ci]);
 
@@ -261,7 +273,7 @@ fn update_centroids<D: ColorDifference>(rng: &mut impl Rng, centers: &mut Center
 
 /// Run a trial of sort k-means
 fn kmeans<D: ColorDifference>(
-	data: &PixelDataVec,
+	oklab: &OklabCounts,
 	KmeansState { centers, distances, points }: &mut KmeansState,
 	k: u8,
 	max_iter: u32,
@@ -269,12 +281,12 @@ fn kmeans<D: ColorDifference>(
 	seed: u64,
 ) -> KmeansResult {
 	let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(seed);
-	kmeans_plus_plus::<D>(k, &mut rng, &data.color, &mut centers.centroid, &mut points.weight);
+	kmeans_plus_plus::<D>(k, &mut rng, &oklab.colors, &mut centers.centroid, &mut points.weight);
 
 	debug_assert!(u8::try_from(centers.len()).is_ok());
 
 	// Compute initial vector sums and counts
-	for (color, &n, &center) in soa_zip!(data, [color, count], &points.assignment) {
+	for (color, &n, &center) in soa_zip!(oklab, [colors, counts], &points.assignment) {
 		let i = usize::from(center);
 		let nf = f64::from(n);
 		let sum = &mut centers.sum[i];
@@ -287,7 +299,7 @@ fn kmeans<D: ColorDifference>(
 	let mut iterations = 0;
 	loop {
 		update_distances::<D>(&centers.centroid, distances);
-		update_assignments::<D>(data, centers, distances, points);
+		update_assignments::<D>(oklab, centers, distances, points);
 		let total_delta = update_centroids::<D>(&mut rng, centers);
 
 		iterations += 1;
@@ -297,7 +309,7 @@ fn kmeans<D: ColorDifference>(
 		}
 	}
 
-	let variance = soa_zip!(data, [color, count], &points.assignment)
+	let variance = soa_zip!(oklab, [colors, counts], &points.assignment)
 		.map(|(&color, &n, &center)| {
 			f64::from(n) * f64::from(D::squared_distance(color, centers.centroid[usize::from(center)]))
 		})
@@ -317,26 +329,30 @@ fn kmeans<D: ColorDifference>(
 
 /// Run multiple trials of k-means, taking the trial with the lowest variance
 fn run_trials<D: ColorDifference>(
-	data: &PixelDataVec,
+	oklab: &OklabCounts,
 	trials: u32,
 	k: u8,
 	max_iter: u32,
 	convergence: f32,
 	seed: u64,
 ) -> KmeansResult {
-	// data.len() <= u32::MAX because of `get_thumbnail` and `process_pixels`
-	#[allow(clippy::cast_possible_truncation)]
-	let mut state = KmeansState::new(k, data.len() as u32);
+	let n = u32::try_from(oklab.colors.len()).expect("number of colors is within u32::MAX");
+	let mut state = KmeansState::new(k, n);
 
 	(0..trials)
-		.map(|i| kmeans::<D>(data, &mut state, k, max_iter, convergence, seed + u64::from(i)))
+		.map(|i| kmeans::<D>(oklab, &mut state, k, max_iter, convergence, seed ^ u64::from(i)))
 		.min_by(|x, y| f64::total_cmp(&x.variance, &y.variance))
-		.expect("at least one trial")
+		.unwrap_or(KmeansResult::empty())
 }
 
 /// Run multiple trials of k-means, taking the trial with the lowest variance
+///
+/// An empty result with no centroids is returned if `oklab` is empty, `trials` = 0, or `k` = 0.
+///
+/// # Panics
+/// Panics if the length of `oklab` is greater than `u32::MAX`
 pub fn run(
-	data: &PixelDataVec,
+	oklab: &OklabCounts,
 	trials: u32,
 	k: u8,
 	convergence_threshold: f32,
@@ -344,9 +360,11 @@ pub fn run(
 	seed: u64,
 	ignore_lightness: bool,
 ) -> KmeansResult {
-	if ignore_lightness {
-		run_trials::<ChromaHueDistance>(data, trials, k, max_iter, convergence_threshold, seed)
+	if k == 0 || oklab.colors.is_empty() {
+		KmeansResult::empty()
+	} else if ignore_lightness {
+		run_trials::<ChromaHueDistance>(oklab, trials, k, max_iter, convergence_threshold, seed)
 	} else {
-		run_trials::<EuclideanDistance>(data, trials, k, max_iter, convergence_threshold, seed)
+		run_trials::<EuclideanDistance>(oklab, trials, k, max_iter, convergence_threshold, seed)
 	}
 }

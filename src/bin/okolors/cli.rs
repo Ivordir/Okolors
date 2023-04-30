@@ -94,14 +94,14 @@ pub struct Options {
 	pub ignore_lightness: bool,
 
 	/// The (maximum) number of colors to find
-	#[arg(short, default_value_t = 8, value_parser = clap::value_parser!(u8).range(1..))]
+	#[arg(short, default_value_t = 8)]
 	pub k: u8,
 
 	/// The number of trials of k-means to run
 	///
 	/// k-means can get stuck in a local minimum, so you may want to run a few or more trials to get better results.
 	/// The trial with the lowest variance is picked.
-	#[arg(short = 'n', long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..))]
+	#[arg(short = 'n', long, default_value_t = 1)]
 	pub trials: u32,
 
 	/// The threshold number used to determine k-means convergence
@@ -134,7 +134,7 @@ pub struct Options {
 	/// as multiple pixels in the original image are interpolated to form a pixel in the thumbnail.
 	/// This option is intended for reducing the time needed for large images,
 	/// but it can also be used to provide fast, inaccurate results for any image.
-	#[arg(short = 'p', long, default_value_t = u32::MAX, value_parser = clap::value_parser!(u32).range(1..))]
+	#[arg(short = 'p', long, default_value_t = u32::MAX)]
 	pub max_pixels: u32,
 
 	/// The seed value used for the random number generator
