@@ -114,6 +114,8 @@ impl KmeansState {
 /// Result from running k-means
 pub struct KmeansResult {
 	/// Variance achieved by these centroids
+	///
+	/// A lower variance indicates a higher accuracy.
 	pub variance: f64,
 	/// Final centroid colors
 	pub centroids: Vec<Oklab>,

@@ -111,7 +111,7 @@ pub struct Options {
 	/// A value of 0.1 is very fast (often only a few iterations are needed for regular sized images),
 	/// and this should be enough to get a decent looking palette.
 	///
-	/// A value of 0.01 is the recommended value for maximum accuracy.
+	/// A value of 0.01 is the lowest sensible value for maximum accuracy.
 	/// Convergence thresholds should probably be not too far lower than this,
 	/// as any iterations after this either do not or barely effect the final sRGB colors.
 	/// I.e., don't use 0.0 as the convergence threshold,
