@@ -61,19 +61,18 @@ impl PointDataVec {
 }
 
 /// Data for each center/centroid
-#[derive(StructOfArray)]
 struct CenterData {
 	/// The centroid point
-	centroid: Oklab,
+	centroid: Vec<Oklab>,
 	/// Vector sum for all data points in this center
-	sum: Oklab<f64>,
+	sum: Vec<Oklab<f64>>,
 	/// Number of points in this center
-	count: u32,
+	count: Vec<u32>,
 }
 
-impl CenterDataVec {
+impl CenterData {
 	/// Initialize Vecs to the given number of centers
-	fn init(k: u8) -> Self {
+	fn new(k: u8) -> Self {
 		let k = usize::from(k);
 		Self {
 			centroid: Vec::new(),
@@ -93,7 +92,7 @@ impl CenterDataVec {
 /// Holds all the state used by k-means
 struct KmeansState {
 	/// Data for each center
-	centers: CenterDataVec,
+	centers: CenterData,
 	/// One fourth of the squared distance between each pairs of centers
 	distances: Vec<(u8, f32)>,
 	/// Data for each point
@@ -104,7 +103,7 @@ impl KmeansState {
 	/// Initialize a new `KmeansState` with `k` centers and `n` data points
 	fn new(k: u8, n: u32) -> Self {
 		Self {
-			centers: CenterDataVec::init(k),
+			centers: CenterData::new(k),
 			distances: vec![(0, 0.0); usize::from(k) * usize::from(k)],
 			points: PointDataVec::init(n),
 		}
@@ -194,11 +193,11 @@ fn update_distances<D: ColorDifference>(centroids: &[Oklab], distances: &mut [(u
 /// For each data point, update its assigned center
 fn update_assignments<D: ColorDifference>(
 	oklab: &OklabCounts,
-	centers: &mut CenterDataVec,
+	centers: &mut CenterData,
 	distances: &[(u8, f32)],
 	points: &mut PointDataVec,
 ) {
-	let k = centers.len();
+	let k = centers.centroid.len();
 	for (&color, &n, center) in soa_zip!(oklab, [colors, counts], &mut points.assignment) {
 		let ci = usize::from(*center);
 		let dist = D::squared_distance(color, centers.centroid[ci]);
@@ -245,7 +244,7 @@ fn update_assignments<D: ColorDifference>(
 }
 
 /// For each center, update its centroid using the vector sums and compute deltas
-fn update_centroids<D: ColorDifference>(rng: &mut impl Rng, centers: &mut CenterDataVec) -> f32 {
+fn update_centroids<D: ColorDifference>(rng: &mut impl Rng, centers: &mut CenterData) -> f32 {
 	let mut total_delta = 0.0;
 	for (centroid, &n, sum) in soa_zip!(centers, [mut centroid, count, sum]) {
 		let new_centroid = if n == 0 {
