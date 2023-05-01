@@ -46,7 +46,7 @@ Let's use the following photo for the examples below.
 Running Okolors for this image with the default options gives the following sRGB hex values.
 
 ```bash
-> ok-palette 'img/Jewel Changi.jpg'
+> okolors 'img/Jewel Changi.jpg'
 010303 091E22 104852 E7E7E9 BEA8A9 527A8F A76965 583830
 ```
 
@@ -54,7 +54,7 @@ If your terminal supports true color,
 then you can use `-o swatch` to see blocks of the output colors.
 
 ```bash
-> ok-palette 'img/Jewel Changi.jpg' -o swatch
+> okolors 'img/Jewel Changi.jpg' -o swatch
 ```
 
 ![](docs/swatch1.svg)
@@ -62,7 +62,7 @@ then you can use `-o swatch` to see blocks of the output colors.
 We can increase the color accuracy by increasing the number of trials, `-n`, and lowering the convergence threshold, `-e`.
 
 ```bash
-> ok-palette 'img/Jewel Changi.jpg' -n 4 -e 0.01 -o swatch
+> okolors 'img/Jewel Changi.jpg' -n 4 -e 0.01 -o swatch
 ```
 
 ![](docs/swatch2.svg)
@@ -74,7 +74,7 @@ so the other colors are hardly coming through anymore.
 We can try increasing k, but now we have a lot of colors, and some are very similar.
 
 ```bash
-> ok-palette 'img/Jewel Changi.jpg' -k 12 -n 4 -e 0.01 -o swatch
+> okolors 'img/Jewel Changi.jpg' -k 12 -n 4 -e 0.01 -o swatch
 ```
 
 ![](docs/swatch3.svg)
@@ -82,7 +82,7 @@ We can try increasing k, but now we have a lot of colors, and some are very simi
 Alternatively, let's ignore color lightness to merge similar colors together, thereby bringing out other colors in the process.
 
 ```bash
-> ok-palette 'img/Jewel Changi.jpg' --ignore-lightness -n 4 -e 0.01 -o swatch
+> okolors 'img/Jewel Changi.jpg' --ignore-lightness -n 4 -e 0.01 -o swatch
 ```
 
 ![](docs/swatch4.svg)
@@ -90,7 +90,7 @@ Alternatively, let's ignore color lightness to merge similar colors together, th
 That's better! Unfortunately, now white and black have been merged into a dark gray. We can, however, specify additional lightness levels to print the colors in with `-l`.
 
 ```bash
-> ok-palette 'img/Jewel Changi.jpg' -l 10,30,50,70 --ignore-lightness -n 4 -e 0.01 -o swatch
+> okolors 'img/Jewel Changi.jpg' -l 10,30,50,70 --ignore-lightness -n 4 -e 0.01 -o swatch
 ```
 
 ![](docs/swatch5.svg)
