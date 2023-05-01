@@ -26,17 +26,6 @@ avif support is currently handled using `aom`.
 So, loading avif images requires having `aom` on your system
 (e.g., [Arch package](https://archlinux.org/packages/extra/x86_64/aom/)).
 
-## Performance: ~~blazingly~~ smolderingly fast
-
-Despite using k-means which is more accurate but slower than something like median cut quantization,
-Okolors still seems to be decently fast. For example, for a 1920x1080 jpeg image on my hardware,
-Okolors takes about 100-200ms to complete using the default options.
-(15-50ms of this time is simply loading the image from disk and decoding it.)
-The plan is to reduce this time further by implementing multi-threading
-and/or possibly SIMD once [portable-simd](https://github.com/rust-lang/rust/issues/86656) becomes stable.
-
-(Benchmarks will hopefully come soon as well!)
-
 # Examples
 
 Let's use the following photo for the examples below.
@@ -94,6 +83,17 @@ That's better! Unfortunately, now white and black have been merged into a dark g
 ```
 
 ![](docs/swatch5.svg)
+
+# Performance: ~~blazingly~~ smolderingly fast
+
+Despite using k-means which is more accurate but slower than something like median cut quantization,
+Okolors still seems to be decently fast. For example, for a 1920x1080 jpeg image on my hardware,
+Okolors takes about 100-200ms to complete using the default options.
+(15-50ms of this time is simply loading the image from disk and decoding it.)
+The plan is to reduce this time further by implementing multi-threading
+and/or possibly SIMD once [portable-simd](https://github.com/rust-lang/rust/issues/86656) becomes stable.
+
+(Benchmarks will hopefully come soon as well!)
 
 # References
 
