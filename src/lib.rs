@@ -7,7 +7,7 @@
 //! ```rust
 //! let pixels = image::open(path).unwrap().into_rgb8();
 //! let srgb = palette::cast::from_component_slice(pixels.as_raw());
-//! let result = okolors::from_srgb(srgb, 1, 5, 0.05, 128, 0, false);
+//! let result = okolors::from_srgb(srgb, 1, 5, 0.05, 64, 0, false);
 //! ```
 //!
 //! ## Run k-means multiple times with different settings.
@@ -99,7 +99,7 @@
 //! One downside is that if the image contains black and white, then they will be averaged into a shade of gray.
 //!
 //! Otherwise, colors are compared using standard euclidean distance in the Oklab color space
-//! where lightness has a compartively higher influence on color difference than the other components.
+//! where lightness has a higher potential influence on color difference compared to the other components.
 
 #![deny(unsafe_code)]
 #![warn(clippy::pedantic, clippy::cargo)]
