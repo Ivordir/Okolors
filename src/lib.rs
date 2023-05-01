@@ -4,21 +4,21 @@
 //!
 //! ## Read an image file and get 5 average colors.
 //!
-//! ```rust
-//! let pixels = image::open(path).unwrap().into_rgb8();
+//! ```
+//! let pixels = image::open("docs/Jewel Changi.jpg").unwrap().into_rgb8();
 //! let srgb = palette::cast::from_component_slice(pixels.as_raw());
 //! let result = okolors::from_srgb(srgb, 1, 5, 0.05, 64, 0, false);
 //! ```
 //!
 //! ## Run k-means multiple times with different settings.
 //!
-//! ```rust
-//! let pixels = image::open(path).unwrap().into_rgb8();
+//! ```
+//! let pixels = image::open("docs/Jewel Changi.jpg").unwrap().into_rgb8();
 //! let srgb = palette::cast::from_component_slice(pixels.as_raw());
 //! let lab = okolors::srgb_to_oklab_counts(srgb);
 //!
-//! let avg5 = okolors::from_oklab_counts(lab, 1, 5, 0.05, 64, 0, false);
-//! let avg8 = okolors::from_oklab_counts(lab, 1, 8, 0.05, 64, 0, false);
+//! let avg5 = okolors::from_oklab_counts(&lab, 1, 5, 0.05, 64, 0, false);
+//! let avg8 = okolors::from_oklab_counts(&lab, 1, 8, 0.05, 64, 0, false);
 //!
 //! let result = if avg5.variance < avg8.variance { avg5 } else { avg8 };
 //! ```
@@ -123,9 +123,9 @@ pub use kmeans::KmeansResult;
 /// Deduplicated Oklab colors converted from Srgb colors
 pub struct OklabCounts {
 	/// Oklab colors
-	colors: Vec<Oklab>,
+	pub(crate) colors: Vec<Oklab>,
 	/// The number of duplicate Srgb pixels for each Oklab color
-	counts: Vec<u32>,
+	pub(crate) counts: Vec<u32>,
 }
 
 impl OklabCounts {

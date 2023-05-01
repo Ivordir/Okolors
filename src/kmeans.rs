@@ -284,8 +284,6 @@ fn kmeans<D: ColorDifference>(
 	let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(seed);
 	kmeans_plus_plus::<D>(k, &mut rng, &oklab.colors, &mut centers.centroid, &mut points.weight);
 
-	debug_assert!(u8::try_from(centers.len()).is_ok());
-
 	// Compute initial vector sums and counts
 	for (color, &n, &center) in soa_zip!(oklab, [colors, counts], &points.assignment) {
 		let i = usize::from(center);
@@ -367,5 +365,111 @@ pub fn run(
 		run_trials::<ChromaHueDistance>(oklab, trials, k, max_iter, convergence_threshold, seed)
 	} else {
 		run_trials::<EuclideanDistance>(oklab, trials, k, max_iter, convergence_threshold, seed)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	fn test_colors() -> Vec<Oklab> {
+		vec![
+			Oklab { l: 0.5, a: 0.25, b: 0.25 },
+			Oklab { l: 0.25, a: 0.1, b: 0.3 },
+			Oklab { l: 0.5, a: 0.0, b: 0.0 },
+			Oklab { l: 0.6, a: 0.2, b: 0.1 },
+			Oklab { l: 0.1, a: 0.2, b: 0.3 },
+			Oklab { l: 0.3, a: 0.3, b: 0.3 },
+		]
+	}
+
+	fn test_counts() -> Vec<u32> {
+		vec![4, 3, 2, 3, 1, 2]
+	}
+
+	fn kmeans_plus_plus_num_centroids(k: u8, n: u32) {
+		let mut state = KmeansState::new(k, n);
+
+		kmeans_plus_plus::<EuclideanDistance>(
+			k,
+			&mut rand_chacha::ChaCha8Rng::seed_from_u64(0),
+			&test_colors()[..(n as usize)],
+			&mut state.centers.centroid,
+			&mut state.points.weight,
+		);
+
+		assert_eq!(state.centers.centroid.len(), usize::min(usize::from(k), n as usize));
+	}
+
+	#[test]
+	fn kmeans_plus_plus_k_greater_than_n() {
+		let k = 6;
+		let n = 2;
+		kmeans_plus_plus_num_centroids(k, n);
+	}
+
+	#[test]
+	fn kmeans_plus_plus_k_equals_n() {
+		let k = 4;
+		let n = 4;
+		kmeans_plus_plus_num_centroids(k, n);
+	}
+
+	#[test]
+	fn kmeans_plus_plus_k_less_than_n() {
+		let k = 2;
+		let n = 6;
+		kmeans_plus_plus_num_centroids(k, n);
+	}
+
+	#[test]
+	fn update_distances_sorts_each_row() {
+		let data = test_colors();
+		let len = data.len();
+		let mut distances = vec![(0, 0.0); len * len];
+
+		update_distances::<EuclideanDistance>(&data, &mut distances);
+
+		#[allow(clippy::cast_possible_truncation)]
+		for (i, row) in distances.chunks_exact(len).enumerate() {
+			assert!(row[0] == (i as u8, 0.0));
+			for j in 0..(len - 1) {
+				assert!(row[j].1 <= row[j + 1].1);
+			}
+		}
+	}
+
+	#[test]
+	fn update_centroids_total_delta() {
+		let k = 4;
+		let data = OklabCounts {
+			colors: test_colors(),
+			counts: test_counts(),
+		};
+		#[allow(clippy::cast_possible_truncation)]
+		let mut state = KmeansState::new(k, data.colors.len() as u32);
+		let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(0);
+
+		kmeans_plus_plus::<EuclideanDistance>(
+			k,
+			&mut rng,
+			&data.colors,
+			&mut state.centers.centroid,
+			&mut state.points.weight,
+		);
+
+		let old_centroids = state.centers.centroid.clone();
+
+		update_assignments::<EuclideanDistance>(&data, &mut state.centers, &state.distances, &mut state.points);
+
+		let total_delta = update_centroids::<EuclideanDistance>(&mut rng, &mut state.centers);
+
+		let expected = old_centroids
+			.iter()
+			.zip(&state.centers.centroid)
+			.map(|(&old, &new)| EuclideanDistance::squared_distance(old, new).sqrt())
+			.sum::<f32>();
+
+		assert!((total_delta - expected).abs() <= 1e-16);
 	}
 }

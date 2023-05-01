@@ -6,3 +6,6 @@ build-bin:
 
 clippy:
   cargo clippy --all-features
+
+test:
+  cargo test --features binary
