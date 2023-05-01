@@ -115,18 +115,16 @@ fn print_palette(options: &Options) {
 		);
 	}
 
-	let colors_by_lightness = sorted_colors_grouped_by_lightness(&kmeans, options);
+	let mut colors = sorted_colors(&kmeans, options);
 
 	match options.output {
-		FormatOutput::Hex => color_format_print(&colors_by_lightness, options.colorize, " ", |color| {
-			format!("{color:X}")
-		}),
+		FormatOutput::Hex => color_format_print(&mut colors, options, " ", |color| format!("{color:X}")),
 
-		FormatOutput::Rgb => color_format_print(&colors_by_lightness, options.colorize, " ", |color| {
+		FormatOutput::Rgb => color_format_print(&mut colors, options, " ", |color| {
 			format!("({},{},{})", color.red, color.green, color.blue)
 		}),
 
-		FormatOutput::Swatch => format_print(&colors_by_lightness, "", |color| {
+		FormatOutput::Swatch => format_print(&mut colors, options, "", |color| {
 			"   ".on_truecolor(color.red, color.green, color.blue).to_string()
 		}),
 	}
@@ -143,8 +141,7 @@ fn to_srgb(okhsl: Okhsl) -> Srgb<u8> {
 }
 
 /// Convert Oklab colors from k-means to Okhsl, sorting by the given metric.
-/// Then, create rows for each lightness and convert into Srgb.
-fn sorted_colors_grouped_by_lightness(kmeans: &okolors::KmeansResult, options: &Options) -> Vec<Vec<Srgb<u8>>> {
+fn sorted_colors(kmeans: &okolors::KmeansResult, options: &Options) -> Vec<Okhsl> {
 	let mut avg_colors = kmeans
 		.centroids
 		.iter()
@@ -163,49 +160,48 @@ fn sorted_colors_grouped_by_lightness(kmeans: &okolors::KmeansResult, options: &
 		avg_colors.reverse();
 	}
 
-	let mut colors_by_lightness = Vec::new();
+	vec_map(&avg_colors, |&(color, _)| color)
+}
 
-	if !options.no_avg_lightness {
-		colors_by_lightness.push(vec_map(&avg_colors, |&(color, _)| to_srgb(color)));
-	}
-
-	for &l in &options.lightness_levels {
-		colors_by_lightness.push(vec_map(&avg_colors, |&(color, _)| {
-			to_srgb(Okhsl { lightness: l / LIGHTNESS_SCALE, ..color })
-		}));
-	}
-
-	colors_by_lightness
+/// Print a line of colors using the given format
+fn print_colors(colors: &[Okhsl], delimiter: &str, format: impl Fn(Srgb<u8>) -> String) {
+	println!(
+		"{}",
+		colors
+			.iter()
+			.copied()
+			.map(|color| format(to_srgb(color)))
+			.collect::<Vec<_>>()
+			.join(delimiter)
+	);
 }
 
 /// Print all colors using the given format
-fn format_print(colors_by_lightness: &Vec<Vec<Srgb<u8>>>, delimiter: &str, format: impl Fn(Srgb<u8>) -> String) {
-	for colors in colors_by_lightness {
-		println!(
-			"{}",
-			colors.iter().copied().map(&format).collect::<Vec<_>>().join(delimiter)
-		);
+fn format_print(colors: &mut [Okhsl], options: &Options, delimiter: &str, format: impl Fn(Srgb<u8>) -> String) {
+	if !options.no_avg_lightness {
+		print_colors(colors, delimiter, &format);
+	}
+	for &l in &options.lightness_levels {
+		for color in colors.iter_mut() {
+			color.lightness = l / LIGHTNESS_SCALE;
+		}
+		print_colors(colors, delimiter, &format);
 	}
 }
 
 /// Format, colorize, and then print the text for all colors
-fn color_format_print(
-	colors_by_lightness: &Vec<Vec<Srgb<u8>>>,
-	colorize: Option<ColorizeOutput>,
-	delimiter: &str,
-	format: impl Fn(Srgb<u8>) -> String,
-) {
-	match colorize {
-		Some(ColorizeOutput::Fg) => format_print(colors_by_lightness, delimiter, |color| {
+fn color_format_print(colors: &mut [Okhsl], options: &Options, delimiter: &str, format: impl Fn(Srgb<u8>) -> String) {
+	match options.colorize {
+		Some(ColorizeOutput::Fg) => format_print(colors, options, delimiter, |color| {
 			format(color).truecolor(color.red, color.green, color.blue).to_string()
 		}),
 
-		Some(ColorizeOutput::Bg) => format_print(colors_by_lightness, delimiter, |color| {
+		Some(ColorizeOutput::Bg) => format_print(colors, options, delimiter, |color| {
 			format(color)
 				.on_truecolor(color.red, color.green, color.blue)
 				.to_string()
 		}),
 
-		None => format_print(colors_by_lightness, delimiter, format),
+		None => format_print(colors, options, delimiter, format),
 	}
 }
