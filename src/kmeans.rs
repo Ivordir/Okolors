@@ -169,6 +169,19 @@ fn kmeans_plus_plus<D: ColorDifference>(
 	}
 }
 
+/// Initializes the center sums and counts based off the initial centroids
+fn compute_initial_sums(oklab: &OklabCounts, centers: &mut CenterData, assignment: &[u8]) {
+	for (color, &n, &center) in soa_zip!(oklab, [colors, counts], assignment) {
+		let i = usize::from(center);
+		let nf = f64::from(n);
+		let sum = &mut centers.sum[i];
+		sum.l += nf * f64::from(color.l);
+		sum.a += nf * f64::from(color.a);
+		sum.b += nf * f64::from(color.b);
+		centers.count[i] += n;
+	}
+}
+
 /// For each pair of centers, update their distances and sort each center's row by increasing distance
 // i and j are < centroids.len() <= u8::MAX
 #[allow(clippy::cast_possible_truncation)]
@@ -283,17 +296,7 @@ fn kmeans<D: ColorDifference>(
 ) -> KmeansResult {
 	let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(seed);
 	kmeans_plus_plus::<D>(k, &mut rng, &oklab.colors, &mut centers.centroid, &mut points.weight);
-
-	// Compute initial vector sums and counts
-	for (color, &n, &center) in soa_zip!(oklab, [colors, counts], &points.assignment) {
-		let i = usize::from(center);
-		let nf = f64::from(n);
-		let sum = &mut centers.sum[i];
-		sum.l += nf * f64::from(color.l);
-		sum.a += nf * f64::from(color.a);
-		sum.b += nf * f64::from(color.b);
-		centers.count[i] += n;
-	}
+	compute_initial_sums(oklab, centers, &points.assignment);
 
 	let mut iterations = 0;
 	loop {
@@ -372,6 +375,8 @@ pub fn run(
 mod tests {
 	use super::*;
 
+	// TODO: use relative error instead of absolute for floating point comparison
+
 	fn test_colors() -> Vec<Oklab> {
 		vec![
 			Oklab { l: 0.5, a: 0.25, b: 0.25 },
@@ -403,23 +408,17 @@ mod tests {
 
 	#[test]
 	fn kmeans_plus_plus_k_greater_than_n() {
-		let k = 6;
-		let n = 2;
-		kmeans_plus_plus_num_centroids(k, n);
+		kmeans_plus_plus_num_centroids(6, 2);
 	}
 
 	#[test]
 	fn kmeans_plus_plus_k_equals_n() {
-		let k = 4;
-		let n = 4;
-		kmeans_plus_plus_num_centroids(k, n);
+		kmeans_plus_plus_num_centroids(4, 4);
 	}
 
 	#[test]
 	fn kmeans_plus_plus_k_less_than_n() {
-		let k = 2;
-		let n = 6;
-		kmeans_plus_plus_num_centroids(k, n);
+		kmeans_plus_plus_num_centroids(2, 6);
 	}
 
 	#[test]
@@ -439,9 +438,7 @@ mod tests {
 		}
 	}
 
-	#[test]
-	fn update_centroids_total_delta() {
-		let k = 4;
+	fn initialize(k: u8) -> (OklabCounts, KmeansState, impl Rng) {
 		let data = OklabCounts {
 			colors: test_colors(),
 			counts: test_counts(),
@@ -457,6 +454,91 @@ mod tests {
 			&mut state.centers.centroid,
 			&mut state.points.weight,
 		);
+
+		compute_initial_sums(&data, &mut state.centers, &state.points.assignment);
+
+		(data, state, rng)
+	}
+
+	fn center_sum(sums: &[Oklab<f64>]) -> Oklab<f64> {
+		let mut center_sum = Oklab { l: 0.0, a: 0.0, b: 0.0 };
+		for sum in sums {
+			center_sum.l += sum.l;
+			center_sum.a += sum.a;
+			center_sum.b += sum.b;
+		}
+		center_sum
+	}
+
+	fn assert_oklab_eq(x: Oklab<f64>, y: Oklab<f64>) {
+		assert!((x.l - y.l).abs() <= 1e-16);
+		assert!((x.a - y.a).abs() <= 1e-16);
+		assert!((x.b - y.b).abs() <= 1e-16);
+	}
+
+	#[test]
+	fn compute_initial_sums_preserves_sum() {
+		let (data, state, _) = initialize(4);
+
+		let mut expected_sum = Oklab { l: 0.0, a: 0.0, b: 0.0 };
+		let mut expected_count = 0;
+		for (&color, &count) in soa_zip!(&data, [colors, counts]) {
+			expected_count += count;
+			let n = f64::from(count);
+			expected_sum.l += n * f64::from(color.l);
+			expected_sum.a += n * f64::from(color.a);
+			expected_sum.b += n * f64::from(color.b);
+		}
+
+		let sum = center_sum(&state.centers.sum);
+
+		assert_eq!(expected_count, state.centers.count.iter().sum());
+		assert_oklab_eq(sum, expected_sum);
+	}
+
+	#[test]
+	fn update_assignments_preverves_sum() {
+		let (data, mut state, _) = initialize(4);
+
+		let expected_sum = center_sum(&state.centers.sum);
+		let expected_count = state.centers.count.iter().sum::<u32>();
+
+		update_assignments::<EuclideanDistance>(&data, &mut state.centers, &state.distances, &mut state.points);
+
+		let sum = center_sum(&state.centers.sum);
+
+		assert_eq!(expected_count, state.centers.count.iter().sum());
+		assert_oklab_eq(sum, expected_sum);
+	}
+
+	#[test]
+	fn update_assignments_sum_reflects_assignment() {
+		let (data, mut state, _) = initialize(4);
+
+		update_assignments::<EuclideanDistance>(&data, &mut state.centers, &state.distances, &mut state.points);
+
+		for (&color, &count, &center) in soa_zip!(&data, [colors, counts], &state.points.assignment) {
+			let center = usize::from(center);
+			let n = f64::from(count);
+			let sum = &mut state.centers.sum[center];
+			sum.l -= n * f64::from(color.l);
+			sum.a -= n * f64::from(color.a);
+			sum.b -= n * f64::from(color.b);
+			state.centers.count[center] -= count;
+		}
+
+		for &sum in &state.centers.sum {
+			assert_oklab_eq(sum, Oklab { l: 0.0, a: 0.0, b: 0.0 });
+		}
+
+		for &count in &state.centers.count {
+			assert_eq!(count, 0);
+		}
+	}
+
+	#[test]
+	fn update_centroids_total_delta() {
+		let (data, mut state, mut rng) = initialize(4);
 
 		let old_centroids = state.centers.centroid.clone();
 
