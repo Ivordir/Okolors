@@ -92,7 +92,10 @@ fn print_palette(options: &Options) {
 
 	let data = time!(
 		preprocessing,
-		okolors::srgb_to_oklab_counts(palette::cast::from_component_slice(img.as_raw()))
+		okolors::srgb_to_oklab_counts(
+			palette::cast::from_component_slice(img.as_raw()),
+			options.lightness_weight
+		)
 	);
 
 	let kmeans = time!(
@@ -104,7 +107,6 @@ fn print_palette(options: &Options) {
 			options.convergence_threshold,
 			options.max_iter,
 			options.seed,
-			options.ignore_lightness,
 		)
 	);
 

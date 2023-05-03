@@ -84,14 +84,13 @@ pub struct Options {
 	#[arg(long)]
 	pub no_avg_lightness: bool,
 
-	/// Ignore color lightness when performing k-means
+	/// The value used to scale down the influence of the lightness component on color difference
 	///
-	/// This option has the effect of bringing out more distinct hues and also tends to be faster.
-	/// If this option is not enabled, some of the average colors may differ primarily in lightness only.
-	/// So, if --lightness-levels are specified, then very similar colors may end up being printed.
-	/// This option fixes this by only comparing colors using their hue and saturation.
-	#[arg(long)]
-	pub ignore_lightness: bool,
+	/// Lower weights have the effect of bringing out more distinct hues and also tends to be faster.
+	/// A value around `0.325` seems to provide similar results to the CIELAB color space.
+	/// Provided values should be in the range [0.0, 1.0].
+	#[arg(short = 'w', long, default_value_t = 0.325, value_parser = parse_valid_lightness_weight)]
+	pub lightness_weight: f32,
 
 	/// The (maximum) number of colors to find
 	#[arg(short, default_value_t = 8)]
@@ -173,4 +172,9 @@ fn parse_valid_lightness(s: &str) -> Result<f32, String> {
 	let min = LIGHTNESS_SCALE * Okhsl::<f32>::min_lightness();
 	let max = LIGHTNESS_SCALE * Okhsl::<f32>::max_lightness();
 	parse_float_in_range(s, min..=max)
+}
+
+/// Parse the lightness weight and ensure it is in `0.0..=1.0`
+fn parse_valid_lightness_weight(s: &str) -> Result<f32, String> {
+	parse_float_in_range(s, 0.0..=1.0)
 }

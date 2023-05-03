@@ -317,9 +317,16 @@ fn kmeans<D: ColorDifference>(
 		})
 		.sum();
 
-	let centroids = soa_zip!(&centers, [centroid, count])
+	let mut centroids = soa_zip!(&centers, [centroid, count])
 		.filter_map(|(&color, &count)| if count == 0 { None } else { Some(color) })
 		.collect::<Vec<_>>();
+
+	#[allow(clippy::float_cmp)]
+	if oklab.lightness_weight != 0.0 && oklab.lightness_weight != 1.0 {
+		for color in &mut centroids {
+			color.l /= oklab.lightness_weight;
+		}
+	}
 
 	let counts = centers.count.iter().copied().filter(|&n| n > 0).collect::<Vec<_>>();
 
@@ -360,11 +367,11 @@ pub fn run(
 	convergence_threshold: f32,
 	max_iter: u32,
 	seed: u64,
-	ignore_lightness: bool,
 ) -> KmeansResult {
+	#[allow(clippy::float_cmp)]
 	if k == 0 || oklab.colors.is_empty() {
 		KmeansResult::empty()
-	} else if ignore_lightness {
+	} else if oklab.lightness_weight == 0.0 {
 		run_trials::<ChromaHueDistance>(oklab, trials, k, max_iter, convergence_threshold, seed)
 	} else {
 		run_trials::<EuclideanDistance>(oklab, trials, k, max_iter, convergence_threshold, seed)
@@ -442,6 +449,7 @@ mod tests {
 		let data = OklabCounts {
 			colors: test_colors(),
 			counts: test_counts(),
+			lightness_weight: 1.0,
 		};
 		#[allow(clippy::cast_possible_truncation)]
 		let mut state = KmeansState::new(k, data.colors.len() as u32);

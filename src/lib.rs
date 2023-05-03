@@ -7,7 +7,7 @@
 //! ```
 //! let pixels = image::open("docs/Jewel Changi.jpg").unwrap().into_rgb8();
 //! let srgb = palette::cast::from_component_slice(pixels.as_raw());
-//! let result = okolors::from_srgb(srgb, 1, 5, 0.05, 64, 0, false);
+//! let result = okolors::from_srgb(srgb, 0.325, 1, 5, 0.05, 64, 0);
 //! ```
 //!
 //! ## Run k-means multiple times with different settings.
@@ -15,10 +15,10 @@
 //! ```
 //! let pixels = image::open("docs/Jewel Changi.jpg").unwrap().into_rgb8();
 //! let srgb = palette::cast::from_component_slice(pixels.as_raw());
-//! let lab = okolors::srgb_to_oklab_counts(srgb);
+//! let lab = okolors::srgb_to_oklab_counts(srgb, 0.325);
 //!
-//! let avg5 = okolors::from_oklab_counts(&lab, 1, 5, 0.05, 64, 0, false);
-//! let avg8 = okolors::from_oklab_counts(&lab, 1, 8, 0.05, 64, 0, false);
+//! let avg5 = okolors::from_oklab_counts(&lab, 1, 5, 0.05, 64, 0);
+//! let avg8 = okolors::from_oklab_counts(&lab, 1, 8, 0.05, 64, 0);
 //!
 //! let result = if avg5.variance < avg8.variance { avg5 } else { avg8 };
 //! ```
@@ -90,16 +90,14 @@
 //!
 //! Provide any arbitrary value like `0`, `42`, or `123456789`.
 //!
-//! ## Ignore Lightness
+//! ## Lightness Weight
 //!
-//! This controls whether or not the lightness component of the Oklab colors is factored in when performing color difference.
+//! This is used to scale down the lightness component of the Oklab colors when performing color difference.
 //!
-//! If this is `true`, then colors will only be compared using their hue and saturation.
-//! This has the effect of merging similar colors together, possibly bringing out more distinct hues.
-//! One downside is that if the image contains black and white, then they will be averaged into a shade of gray.
+//! A value around `0.325` seems to provide similar results to the CIELAB color space.
 //!
-//! Otherwise, colors are compared using standard euclidean distance in the Oklab color space
-//! where lightness has a higher potential influence on color difference compared to the other components.
+//! Lower weights have the effect of merging similar colors together, possibly bringing out more distinct hues.
+//! Note that for a weight of `0.0`, if the image contains black and white, then they will be averaged into a shade of gray.
 
 #![deny(unsafe_code)]
 #![warn(clippy::pedantic, clippy::cargo)]
@@ -126,12 +124,18 @@ pub struct OklabCounts {
 	pub(crate) colors: Vec<Oklab>,
 	/// The number of duplicate Srgb pixels for each Oklab color
 	pub(crate) counts: Vec<u32>,
+	/// The value used to scale down the lightness of each color
+	pub(crate) lightness_weight: f32,
 }
 
 impl OklabCounts {
-	/// Create an `OklabCounts` with empty Vecs
-	const fn new() -> Self {
-		Self { colors: Vec::new(), counts: Vec::new() }
+	/// Create an `OklabCounts` with empty Vecs and the given lightness weight
+	const fn new(lightness_weight: f32) -> Self {
+		Self {
+			colors: Vec::new(),
+			counts: Vec::new(),
+			lightness_weight,
+		}
 	}
 }
 
@@ -141,21 +145,20 @@ impl OklabCounts {
 #[must_use]
 pub fn from_srgb(
 	pixels: &[Srgb<u8>],
+	lightness_weight: f32,
 	trials: u32,
 	k: u8,
 	convergence_threshold: f32,
 	max_iter: u32,
 	seed: u64,
-	ignore_lightness: bool,
 ) -> KmeansResult {
 	from_oklab_counts(
-		&srgb_to_oklab_counts(pixels),
+		&srgb_to_oklab_counts(pixels, lightness_weight),
 		trials,
 		k,
 		convergence_threshold,
 		max_iter,
 		seed,
-		ignore_lightness,
 	)
 }
 
@@ -175,23 +178,17 @@ pub fn from_oklab_counts(
 	convergence_threshold: f32,
 	max_iter: u32,
 	seed: u64,
-	ignore_lightness: bool,
 ) -> KmeansResult {
-	kmeans::run(
-		oklab_counts,
-		trials,
-		k,
-		convergence_threshold,
-		max_iter,
-		seed,
-		ignore_lightness,
-	)
+	kmeans::run(oklab_counts, trials, k, convergence_threshold, max_iter, seed)
 }
 
 /// Converts a slice of Srgb colors to Oklab colors, merging duplicate Srgb colors in the process.
+///
+/// `lightness_weight` is used to scale down each color's lightness when performing color difference
+/// and should probably be in the range `0.0..=1.0`.
 #[must_use]
-pub fn srgb_to_oklab_counts(pixels: &[Srgb<u8>]) -> OklabCounts {
-	let mut data = OklabCounts::new();
+pub fn srgb_to_oklab_counts(pixels: &[Srgb<u8>], lightness_weight: f32) -> OklabCounts {
+	let mut data = OklabCounts::new(lightness_weight);
 
 	// Converting from Srgb to Oklab is expensive.
 	// Memoizing the results almost halves the time needed.
@@ -216,6 +213,13 @@ pub fn srgb_to_oklab_counts(pixels: &[Srgb<u8>]) -> OklabCounts {
 		});
 
 		data.counts[index as usize] += 1;
+	}
+
+	#[allow(clippy::float_cmp)]
+	if lightness_weight != 0.0 && lightness_weight != 1.0 {
+		for color in &mut data.colors {
+			color.l *= lightness_weight;
+		}
 	}
 
 	data
