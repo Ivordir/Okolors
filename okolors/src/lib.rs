@@ -158,19 +158,17 @@ impl OklabCounts {
 
 	/// Change the lightness weight to provided value which should be in the range `0.0..=1.0`.
 	pub fn set_lightness_weight(&mut self, weight: f32) {
+		// Values outside this range do not make sense but will technically work, so this is a debug assert
 		debug_assert!((0.0..=1.0).contains(&weight));
+		let lightness_weight = self.lightness_weight;
 
 		#[allow(clippy::float_cmp)]
-		if !(weight == self.lightness_weight
-			|| (weight == 0.0 && self.lightness_weight == 1.0)
-			|| (weight == 1.0 && self.lightness_weight == 0.0))
+		if !(weight == lightness_weight
+			|| (weight == 0.0 && lightness_weight == 1.0)
+			|| (weight == 1.0 && lightness_weight == 0.0))
 		{
 			let new_weight = if weight == 0.0 { 1.0 } else { weight };
-			let old_weight = if self.lightness_weight == 0.0 {
-				1.0
-			} else {
-				self.lightness_weight
-			};
+			let old_weight = if lightness_weight == 0.0 { 1.0 } else { lightness_weight };
 
 			for color in &mut self.colors {
 				color.l = (color.l / old_weight) * new_weight;
