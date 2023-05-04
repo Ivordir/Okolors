@@ -387,17 +387,75 @@ mod tests {
 
 	fn test_colors() -> Vec<Oklab> {
 		vec![
-			Oklab { l: 0.5, a: 0.25, b: 0.25 },
-			Oklab { l: 0.25, a: 0.1, b: 0.3 },
-			Oklab { l: 0.5, a: 0.0, b: 0.0 },
-			Oklab { l: 0.6, a: 0.2, b: 0.1 },
-			Oklab { l: 0.1, a: 0.2, b: 0.3 },
-			Oklab { l: 0.3, a: 0.3, b: 0.3 },
+			Oklab {
+				l: 0.13746236,
+				a: 0.0035205781,
+				b: -0.0074754357,
+			},
+			Oklab {
+				l: 0.31124818,
+				a: -0.0063036084,
+				b: 0.045781255,
+			},
+			Oklab {
+				l: 0.1562507,
+				a: -0.063299775,
+				b: -0.032072306,
+			},
+			Oklab {
+				l: 0.2438251,
+				a: -0.0007998347,
+				b: 0.0027060509,
+			},
+			Oklab {
+				l: 0.1443736,
+				a: 0.0025939345,
+				b: -0.004264146,
+			},
+			Oklab {
+				l: 0.076568395,
+				a: 0.016597964,
+				b: 0.03622815,
+			},
+			Oklab {
+				l: 0.28073087,
+				a: 0.026428253,
+				b: 0.116048574,
+			},
+			Oklab {
+				l: 0.24430989,
+				a: 0.108118445,
+				b: 0.036724925,
+			},
+			Oklab {
+				l: 0.288357,
+				a: -0.008182496,
+				b: 0.112403214,
+			},
+			Oklab {
+				l: 0.29064906,
+				a: -0.03578973,
+				b: 0.11639464,
+			},
+			Oklab {
+				l: 0.24213916,
+				a: 0.0062482953,
+				b: -0.09989107,
+			},
+			Oklab {
+				l: 0.28579916,
+				a: 0.00027871132,
+				b: 0.002924323,
+			},
 		]
 	}
 
-	fn test_counts() -> Vec<u32> {
-		vec![4, 3, 2, 3, 1, 2]
+	fn test_data() -> OklabCounts {
+		OklabCounts {
+			colors: test_colors(),
+			counts: vec![12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1],
+			lightness_weight: 1.0,
+		}
 	}
 
 	fn kmeans_plus_plus_num_centroids(k: u8, n: u32) {
@@ -431,11 +489,11 @@ mod tests {
 
 	#[test]
 	fn update_distances_sorts_each_row() {
-		let data = test_colors();
-		let len = data.len();
+		let centroids = test_colors();
+		let len = centroids.len();
 		let mut distances = vec![(0, 0.0); len * len];
 
-		update_distances::<EuclideanDistance>(&data, &mut distances);
+		update_distances::<EuclideanDistance>(&centroids, &mut distances);
 
 		#[allow(clippy::cast_possible_truncation)]
 		for (i, row) in distances.chunks_exact(len).enumerate() {
@@ -447,11 +505,7 @@ mod tests {
 	}
 
 	fn initialize(k: u8) -> (OklabCounts, KmeansState, impl Rng) {
-		let data = OklabCounts {
-			colors: test_colors(),
-			counts: test_counts(),
-			lightness_weight: 1.0,
-		};
+		let data = test_data();
 		#[allow(clippy::cast_possible_truncation)]
 		let mut state = KmeansState::new(k, data.colors.len() as u32);
 		let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(0);
@@ -479,7 +533,13 @@ mod tests {
 		center_sum
 	}
 
-	fn assert_oklab_eq(x: Oklab<f64>, y: Oklab<f64>) {
+	fn assert_sum_eq(x: Oklab<f64>, y: Oklab<f64>) {
+		assert!((x.l - y.l).abs() <= 1e-16);
+		assert!((x.a - y.a).abs() <= 1e-16);
+		assert!((x.b - y.b).abs() <= 1e-16);
+	}
+
+	fn assert_oklab_eq(x: Oklab, y: Oklab) {
 		assert!((x.l - y.l).abs() <= 1e-16);
 		assert!((x.a - y.a).abs() <= 1e-16);
 		assert!((x.b - y.b).abs() <= 1e-16);
@@ -502,7 +562,7 @@ mod tests {
 		let sum = center_sum(&state.centers.sum);
 
 		assert_eq!(expected_count, state.centers.count.iter().sum());
-		assert_oklab_eq(sum, expected_sum);
+		assert_sum_eq(expected_sum, sum);
 	}
 
 	#[test]
@@ -517,7 +577,7 @@ mod tests {
 		let sum = center_sum(&state.centers.sum);
 
 		assert_eq!(expected_count, state.centers.count.iter().sum());
-		assert_oklab_eq(sum, expected_sum);
+		assert_sum_eq(expected_sum, sum);
 	}
 
 	#[test]
@@ -537,7 +597,7 @@ mod tests {
 		}
 
 		for &sum in &state.centers.sum {
-			assert_oklab_eq(sum, Oklab { l: 0.0, a: 0.0, b: 0.0 });
+			assert_sum_eq(sum, Oklab { l: 0.0, a: 0.0, b: 0.0 });
 		}
 
 		for &count in &state.centers.count {
@@ -562,5 +622,132 @@ mod tests {
 			.sum::<f32>();
 
 		assert!((total_delta - expected).abs() <= 1e-16);
+	}
+
+	fn assert_result_eq<D: ColorDifference>(data: &OklabCounts, k: u8, expected: &KmeansResult) {
+		#[allow(clippy::cast_possible_truncation)]
+		let mut state = KmeansState::new(k, data.colors.len() as u32);
+		let result = kmeans::<D>(data, &mut state, k, 64, 0.01, 0);
+
+		assert!((result.variance - expected.variance).abs() <= 1e-8);
+		for (&result, &expected) in result.centroids.iter().zip(&expected.centroids) {
+			assert_oklab_eq(result, expected);
+		}
+		assert_eq!(result.counts, expected.counts);
+		assert!(result.iterations <= expected.iterations);
+	}
+
+	#[test]
+	fn euclidean_distance_expected_results() {
+		let k = 4;
+		let data = test_data();
+
+		let expected = KmeansResult {
+			variance: 0.22378644230775535,
+			centroids: vec![
+				Oklab {
+					l: 0.2967716,
+					a: -0.0020236254,
+					b: 0.08006425,
+				},
+				Oklab {
+					l: 0.24430989,
+					a: 0.108118445,
+					b: 0.036724925,
+				},
+				Oklab {
+					l: 0.15429236,
+					a: -0.010022002,
+					b: -0.0036215205,
+				},
+				Oklab {
+					l: 0.24213916,
+					a: 0.0062482953,
+					b: -0.09989107,
+				},
+			],
+			counts: vec![25, 5, 46, 2],
+			iterations: 2,
+		};
+
+		assert_result_eq::<EuclideanDistance>(&data, k, &expected);
+	}
+
+	#[test]
+	fn chroma_hue_distance_expected_results() {
+		let k = 4;
+		let data = test_data();
+
+		let expected = KmeansResult {
+			variance: 0.0875395935800043,
+			centroids: vec![
+				Oklab {
+					l: 0.28536618,
+					a: 0.0014207959,
+					b: 0.11500679,
+				},
+				Oklab {
+					l: 0.24213916,
+					a: 0.0062482953,
+					b: -0.09989107,
+				},
+				Oklab {
+					l: 0.1863272,
+					a: -0.009139191,
+					b: 0.0058608307,
+				},
+				Oklab {
+					l: 0.24430989,
+					a: 0.108118445,
+					b: 0.036724925,
+				},
+			],
+			counts: vec![13, 2, 58, 5],
+			iterations: 2,
+		};
+
+		assert_result_eq::<ChromaHueDistance>(&data, k, &expected);
+	}
+
+	#[test]
+	fn lightness_weight_expected_results() {
+		let k = 4;
+		let weight = 0.325;
+		let mut data = test_data();
+		data.lightness_weight = weight;
+
+		for color in &mut data.colors {
+			color.l *= weight;
+		}
+
+		let expected = KmeansResult {
+			variance: 0.10947524901712313,
+			centroids: vec![
+				Oklab {
+					l: 0.29722878,
+					a: -0.002119556,
+					b: 0.08327842,
+				},
+				Oklab {
+					l: 0.24213916,
+					a: 0.0062482953,
+					b: -0.09989107,
+				},
+				Oklab {
+					l: 0.15709038,
+					a: -0.009802838,
+					b: -0.0034822472,
+				},
+				Oklab {
+					l: 0.24430989,
+					a: 0.108118445,
+					b: 0.036724925,
+				},
+			],
+			counts: vec![24, 2, 47, 5],
+			iterations: 2,
+		};
+
+		assert_result_eq::<EuclideanDistance>(&data, k, &expected);
 	}
 }
