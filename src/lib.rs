@@ -119,6 +119,7 @@ mod kmeans;
 pub use kmeans::KmeansResult;
 
 /// Deduplicated Oklab colors converted from Srgb colors
+#[derive(Debug, Clone)]
 pub struct OklabCounts {
 	/// Oklab colors
 	pub(crate) colors: Vec<Oklab>,

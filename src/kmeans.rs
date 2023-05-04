@@ -111,6 +111,7 @@ impl KmeansState {
 }
 
 /// Result from running k-means
+#[derive(Debug, Clone)]
 pub struct KmeansResult {
 	/// Variance achieved by these centroids
 	///
