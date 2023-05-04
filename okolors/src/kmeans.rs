@@ -625,7 +625,7 @@ mod tests {
 
 		assert!((result.variance - expected.variance).abs() <= 1e-8);
 		for (&result, &expected) in result.centroids.iter().zip(&expected.centroids) {
-			crate::test::assert_oklab_eq(result, expected, 1e-8);
+			crate::tests::assert_oklab_eq(result, expected, 1e-8);
 		}
 		assert_eq!(result.counts, expected.counts);
 		assert!(result.iterations <= expected.iterations);

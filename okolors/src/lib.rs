@@ -261,7 +261,7 @@ pub fn srgb_to_oklab_counts(pixels: &[Srgb<u8>], lightness_weight: f32) -> Oklab
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
 	use super::*;
 
 	pub fn assert_oklab_eq(x: Oklab, y: Oklab, eps: f32) {
