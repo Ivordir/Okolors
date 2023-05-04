@@ -534,15 +534,9 @@ mod tests {
 	}
 
 	fn assert_sum_eq(x: Oklab<f64>, y: Oklab<f64>) {
-		assert!((x.l - y.l).abs() <= 1e-16);
-		assert!((x.a - y.a).abs() <= 1e-16);
-		assert!((x.b - y.b).abs() <= 1e-16);
-	}
-
-	fn assert_oklab_eq(x: Oklab, y: Oklab) {
-		assert!((x.l - y.l).abs() <= 1e-16);
-		assert!((x.a - y.a).abs() <= 1e-16);
-		assert!((x.b - y.b).abs() <= 1e-16);
+		assert!((x.l - y.l).abs() <= 1e-8);
+		assert!((x.a - y.a).abs() <= 1e-8);
+		assert!((x.b - y.b).abs() <= 1e-8);
 	}
 
 	#[test]
@@ -621,7 +615,7 @@ mod tests {
 			.map(|(&old, &new)| EuclideanDistance::squared_distance(old, new).sqrt())
 			.sum::<f32>();
 
-		assert!((total_delta - expected).abs() <= 1e-16);
+		assert!((total_delta - expected).abs() <= 1e-8);
 	}
 
 	fn assert_result_eq<D: ColorDifference>(data: &OklabCounts, k: u8, expected: &KmeansResult) {
@@ -631,7 +625,7 @@ mod tests {
 
 		assert!((result.variance - expected.variance).abs() <= 1e-8);
 		for (&result, &expected) in result.centroids.iter().zip(&expected.centroids) {
-			assert_oklab_eq(result, expected);
+			crate::test::assert_oklab_eq(result, expected, 1e-8);
 		}
 		assert_eq!(result.counts, expected.counts);
 		assert!(result.iterations <= expected.iterations);

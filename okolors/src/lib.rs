@@ -259,3 +259,52 @@ pub fn srgb_to_oklab_counts(pixels: &[Srgb<u8>], lightness_weight: f32) -> Oklab
 
 	data
 }
+
+#[cfg(test)]
+mod test {
+	use super::*;
+
+	pub fn assert_oklab_eq(x: Oklab, y: Oklab, eps: f32) {
+		assert!((x.l - y.l).abs() <= eps);
+		assert!((x.a - y.a).abs() <= eps);
+		assert!((x.b - y.b).abs() <= eps);
+	}
+
+	fn test_colors() -> Vec<Srgb<u8>> {
+		let range = (0..u8::MAX).step_by(16);
+		let mut colors = Vec::new();
+
+		for r in range.clone() {
+			for g in range.clone() {
+				for b in range.clone() {
+					colors.push(Srgb::new(r, g, b));
+				}
+			}
+		}
+
+		colors
+	}
+
+	#[test]
+	#[allow(clippy::float_cmp)]
+	fn set_lightness_weight_restores_lightness() {
+		let mut oklab = OklabCounts::new();
+
+		for color in test_colors() {
+			oklab.colors.push(Oklab::from_color(color.into_format()));
+			oklab.counts.push(1);
+		}
+
+		let expected = oklab.clone();
+
+		oklab.set_lightness_weight(0.325);
+		oklab.set_lightness_weight(1.0);
+
+		for (&color, &expected) in oklab.colors.iter().zip(&expected.colors) {
+			assert_oklab_eq(color, expected, 1e-7);
+		}
+
+		assert_eq!(expected.counts, oklab.counts);
+		assert_eq!(expected.lightness_weight, oklab.lightness_weight);
+	}
+}
