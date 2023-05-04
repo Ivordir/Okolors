@@ -1,32 +1,8 @@
-[package]
-name = "okolors"
-version = "0.1.0"
-authors = ["Ivordir <Ivordir@pm.me>"]
-edition = "2021"
-description = "Generates a color palette for an image by performing k-means clustering in the Oklab color space. Supports outputting the resulting colors in multiple Okhsl lightness levels."
-homepage = "https://github.com/Ivordir/okcolors"
-repository = "https://github.com/Ivordir/okcolors"
-license = "MIT"
-keywords = ["palette", "theme", "color", "oklab", "kmeans"]
-categories = ["command-line-utilities", "multimedia::images"]
-
-[features]
-binary = ["clap", "colored", "image", "libavif-image"]
-time = []
-
-[dependencies]
-palette = "0.7.1"
-rand = "0.8.5"
-rand_chacha = "0.3.1"
-soa_derive = "0.12.0"
-clap = { version = "4.0.18", features = ["derive"], optional = true }
-colored = { version = "2.0.0", optional = true }
-image = { version = "0.24.4", optional = true }
-libavif-image = { version = "0.9.0", default-features = false, features = ["codec-aom"], optional = true }
-
-[[bin]]
-name = "okolors"
-required-features = ["binary"]
+[workspace]
+members = [
+  "okolors",
+  "okolors-bin",
+]
 
 [profile.time]
 inherits = "release"

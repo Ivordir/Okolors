@@ -4,16 +4,16 @@
 //!
 //! ## Read an image file and get 5 average colors.
 //!
-//! ```
-//! let pixels = image::open("docs/Jewel Changi.jpg").unwrap().into_rgb8();
+//! ```no_run
+//! let pixels = image::open("some image").unwrap().into_rgb8();
 //! let srgb = palette::cast::from_component_slice(pixels.as_raw());
 //! let result = okolors::from_srgb(srgb, 0.325, 1, 5, 0.05, 64, 0);
 //! ```
 //!
 //! ## Run k-means multiple times with different parameters.
 //!
-//! ```
-//! let pixels = image::open("docs/Jewel Changi.jpg").unwrap().into_rgb8();
+//! ```no_run
+//! let pixels = image::open("some image").unwrap().into_rgb8();
 //! let srgb = palette::cast::from_component_slice(pixels.as_raw());
 //! let oklab = okolors::srgb_to_oklab_counts(srgb, 0.325);
 //!
@@ -25,8 +25,8 @@
 //!
 //! ## Run with different lightness weights.
 //!
-//! ```
-//! let pixels = image::open("docs/Jewel Changi.jpg").unwrap().into_rgb8();
+//! ```no_run
+//! let pixels = image::open("some image").unwrap().into_rgb8();
 //! let srgb = palette::cast::from_component_slice(pixels.as_raw());
 //! let mut oklab = okolors::srgb_to_oklab_counts(srgb, 0.325);
 //!
@@ -35,6 +35,7 @@
 //! oklab.set_lightness_weight(1.0);
 //! let resultB = okolors::from_oklab_counts(&oklab, 1, 5, 0.05, 64, 0);
 //! ```
+//!
 //! # Arguments
 //!
 //! Here are explanations of the various arguments that are shared between
