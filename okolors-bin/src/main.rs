@@ -14,24 +14,102 @@
 #![allow(clippy::enum_glob_use)]
 #![allow(clippy::unreadable_literal)]
 
-use clap::Parser;
 use colored::Colorize;
 use image::{ImageBuffer, Rgb};
 use palette::{FromColor, Okhsl, Srgb};
-use std::path::PathBuf;
+use std::{fmt, io, path::PathBuf, process::ExitCode};
 
 mod cli;
 use cli::{ColorizeOutput, FormatOutput, Options, SortOutput, LIGHTNESS_SCALE};
 
-/// Load Srgb pixels from an image path
-fn load_image(path: &PathBuf) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-	// TODO: handle errors more gracefully, providing helpful messages
-	if path.extension().map_or(false, |ext| ext == "avif") {
-		let buf = std::fs::read(path).expect("reading avif file");
-		libavif_image::read(&buf).expect("decoding avif file").into_rgb8()
-	} else {
-		image::open(path).expect("opening image file").into_rgb8()
+/// Record the running time of a function and print the elapsed time
+#[cfg(feature = "time")]
+macro_rules! time {
+	($name: ident, $func_call: expr) => {{
+		use std::time::Instant;
+		let start = Instant::now();
+		let result = $func_call;
+		let end = Instant::now();
+		println!("{} took {}ms", stringify!($name), end.duration_since(start).as_millis());
+		result
+	}};
+}
+
+/// No-op when the time feature is disabled
+#[cfg(not(feature = "time"))]
+macro_rules! time {
+	($name: ident, $func_call: expr) => {
+		$func_call
+	};
+}
+
+/// Error cases for loading and decoding an image
+#[derive(Debug)]
+enum ImageLoadError {
+	/// Failed to read or decode the image file
+	ImageLoad(image::ImageError),
+	/// Failed to read the avif file
+	AvifRead(io::Error),
+	/// Failed to decode the avif file
+	AvifDecode(libavif_image::Error),
+}
+
+impl fmt::Display for ImageLoadError {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		use ImageLoadError::*;
+		match self {
+			ImageLoad(e) => write!(f, "Failed to load the image file: {e}"),
+			AvifRead(e) => write!(f, "Failed to read the avif file: {e}"),
+			AvifDecode(e) => write!(f, "Failed to decode the avif file: {e}"),
+		}
 	}
+}
+
+fn main() -> ExitCode {
+	use clap::Parser;
+
+	let options = Options::parse();
+
+	let result = get_print_palette(&options);
+
+	if let Err(e) = result {
+		eprintln!("{e}");
+		ExitCode::FAILURE
+	} else {
+		ExitCode::SUCCESS
+	}
+}
+
+/// Load an image, generate its palette, and print the result using the given options
+fn get_print_palette(options: &Options) -> Result<(), ImageLoadError> {
+	// Input
+	let img = get_pixels(options)?;
+
+	// Processing
+	let mut colors = get_palette(&img, options);
+
+	// Output
+	print_palette(&mut colors, options);
+
+	Ok(())
+}
+
+/// Load an image from disk, generating an thumbnail if needed, and converting to Srgb<u8>
+fn get_pixels(options: &Options) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, ImageLoadError> {
+	time!(loading, load_image(&options.image)).map(|img| time!(thumbnail, get_thumbnail(img, options.max_pixels)))
+}
+
+/// Load Srgb pixels from an image path
+fn load_image(path: &PathBuf) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, ImageLoadError> {
+	// TODO: handle errors more gracefully, providing helpful messages
+	let img = if path.extension().map_or(false, |ext| ext == "avif") {
+		let buf = std::fs::read(path).map_err(ImageLoadError::AvifRead)?;
+		libavif_image::read(&buf).map_err(ImageLoadError::AvifDecode)?
+	} else {
+		image::open(path).map_err(ImageLoadError::ImageLoad)?
+	};
+
+	Ok(img.into_rgb8())
 }
 
 /// Create a thumbnail with `max_pixels` pixels if the image has more than `max_pixels` pixels
@@ -40,8 +118,6 @@ fn get_thumbnail(img: ImageBuffer<Rgb<u8>, Vec<u8>>, max_pixels: u32) -> ImageBu
 	let pixels = img.pixels().len() as u64;
 	if pixels <= u64::from(max_pixels) {
 		img
-	} else if max_pixels == 0 {
-		ImageBuffer::new(0, 0)
 	} else {
 		// (u64 as f64) only gives innaccurate results for very large u64
 		// I.e, only when pixels is in the order of quintillions
@@ -59,37 +135,8 @@ fn get_thumbnail(img: ImageBuffer<Rgb<u8>, Vec<u8>>, max_pixels: u32) -> ImageBu
 	}
 }
 
-/// Record the running time of a function and print the elapsed time
-#[cfg(feature = "time")]
-macro_rules! time {
-	($name: ident, $func_call: expr) => {{
-		use std::time::Instant;
-		let start = Instant::now();
-		let result = $func_call;
-		let end = Instant::now();
-		println!("{} took {}", stringify!($name), end.duration_since(start).as_millis());
-		result
-	}};
-}
-
-/// No-op when the time feature is disabled
-#[cfg(not(feature = "time"))]
-macro_rules! time {
-	($name: ident, $func_call: expr) => {
-		$func_call
-	};
-}
-
-fn main() {
-	print_palette(&Options::parse());
-}
-
-/// Generate and print a palette using the given options
-fn print_palette(options: &Options) {
-	let img = time!(loading, load_image(&options.image));
-
-	let img = time!(thumbnail, get_thumbnail(img, options.max_pixels));
-
+/// Generate a palette from the given Srgb pixels and options
+fn get_palette(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, options: &Options) -> Vec<Okhsl> {
 	let data = time!(
 		preprocessing,
 		okolors::srgb_to_oklab_counts(
@@ -117,29 +164,7 @@ fn print_palette(options: &Options) {
 		);
 	}
 
-	let mut colors = sorted_colors(&kmeans, options);
-
-	match options.output {
-		FormatOutput::Hex => color_format_print(&mut colors, options, " ", |color| format!("{color:X}")),
-
-		FormatOutput::Rgb => color_format_print(&mut colors, options, " ", |color| {
-			format!("({},{},{})", color.red, color.green, color.blue)
-		}),
-
-		FormatOutput::Swatch => format_print(&mut colors, options, "", |color| {
-			"   ".on_truecolor(color.red, color.green, color.blue).to_string()
-		}),
-	}
-}
-
-/// Shorthand for `vec.iter().map().collect::<Vec<_>>()`
-fn vec_map<T, U>(vec: &[T], mapping: impl FnMut(&T) -> U) -> Vec<U> {
-	vec.iter().map(mapping).collect::<Vec<_>>()
-}
-
-/// Convert an Okhsl color to an Srgb color with u8 components
-fn to_srgb(okhsl: Okhsl) -> Srgb<u8> {
-	Srgb::from_color(okhsl).into_format::<u8>()
+	sorted_colors(&kmeans, options)
 }
 
 /// Convert Oklab colors from k-means to Okhsl, sorting by the given metric.
@@ -162,7 +187,23 @@ fn sorted_colors(kmeans: &okolors::KmeansResult, options: &Options) -> Vec<Okhsl
 		avg_colors.reverse();
 	}
 
-	vec_map(&avg_colors, |&(color, _)| color)
+	avg_colors.into_iter().map(|(color, _)| color).collect()
+}
+
+/// Print the given colors based off the provided options
+fn print_palette(colors: &mut [Okhsl], options: &Options) {
+	use FormatOutput::*;
+	match options.output {
+		Hex => color_format_print(colors, options, " ", |color| format!("{color:X}")),
+
+		Rgb => color_format_print(colors, options, " ", |color| {
+			format!("({},{},{})", color.red, color.green, color.blue)
+		}),
+
+		Swatch => format_print(colors, options, "", |color| {
+			"   ".on_truecolor(color.red, color.green, color.blue).to_string()
+		}),
+	}
 }
 
 /// Print a line of colors using the given format
@@ -171,8 +212,7 @@ fn print_colors(colors: &[Okhsl], delimiter: &str, format: impl Fn(Srgb<u8>) -> 
 		"{}",
 		colors
 			.iter()
-			.copied()
-			.map(|color| format(to_srgb(color)))
+			.map(|&color| format(Srgb::from_color(color).into_format::<u8>()))
 			.collect::<Vec<_>>()
 			.join(delimiter)
 	);
@@ -193,12 +233,13 @@ fn format_print(colors: &mut [Okhsl], options: &Options, delimiter: &str, format
 
 /// Format, colorize, and then print the text for all colors
 fn color_format_print(colors: &mut [Okhsl], options: &Options, delimiter: &str, format: impl Fn(Srgb<u8>) -> String) {
+	use ColorizeOutput::*;
 	match options.colorize {
-		Some(ColorizeOutput::Fg) => format_print(colors, options, delimiter, |color| {
+		Some(Fg) => format_print(colors, options, delimiter, |color| {
 			format(color).truecolor(color.red, color.green, color.blue).to_string()
 		}),
 
-		Some(ColorizeOutput::Bg) => format_print(colors, options, delimiter, |color| {
+		Some(Bg) => format_print(colors, options, delimiter, |color| {
 			format(color)
 				.on_truecolor(color.red, color.green, color.blue)
 				.to_string()
