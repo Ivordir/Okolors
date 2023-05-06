@@ -740,4 +740,29 @@ mod tests {
 
 		assert_result_eq::<EuclideanDistance>(&data, k, &expected);
 	}
+
+	#[test]
+	fn lower_convergence_gives_lower_variance() {
+		let k = 2;
+		let data = test_data();
+
+		let higher = run(&data, 1, k, 0.1, 64, 0);
+		let lower = run(&data, 1, k, 0.01, 64, 0);
+
+		assert!(higher.variance > lower.variance);
+	}
+
+	#[test]
+	fn max_iter_reached() {
+		let data = test_data();
+
+		let many_iter = 64;
+		let converged = run(&data, 1, 4, 0.01, many_iter, 0);
+		assert!(converged.iterations < many_iter);
+
+		let max_iter = converged.iterations / 2;
+		assert!(max_iter > 0);
+		let result = run(&data, 1, 4, 0.1, max_iter, 0);
+		assert_eq!(result.iterations, max_iter);
+	}
 }
