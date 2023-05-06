@@ -553,10 +553,8 @@ mod tests {
 			expected_sum.b += n * f64::from(color.b);
 		}
 
-		let sum = center_sum(&state.centers.sum);
-
 		assert_eq!(expected_count, state.centers.count.iter().sum());
-		assert_sum_eq(expected_sum, sum);
+		assert_sum_eq(expected_sum, center_sum(&state.centers.sum));
 	}
 
 	#[test]
@@ -568,10 +566,8 @@ mod tests {
 
 		update_assignments::<EuclideanDistance>(&data, &mut state.centers, &state.distances, &mut state.points);
 
-		let sum = center_sum(&state.centers.sum);
-
 		assert_eq!(expected_count, state.centers.count.iter().sum());
-		assert_sum_eq(expected_sum, sum);
+		assert_sum_eq(expected_sum, center_sum(&state.centers.sum));
 	}
 
 	#[test]
