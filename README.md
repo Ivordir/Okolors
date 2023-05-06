@@ -36,7 +36,7 @@ Running Okolors for this image with the default options gives the following sRGB
 
 ```bash
 > okolors 'img/Jewel Changi.jpg'
-010303 091E22 104852 E7E7E9 BEA8A9 527A8F A76965 583830
+020707 0A3F48 E8E8E9 352620 90ADBD CC876C 896D94 7B4638
 ```
 
 If your terminal supports true color,
@@ -56,30 +56,30 @@ We can increase the color accuracy by increasing the number of trials, `-n`, and
 
 ![](docs/swatch2.svg)
 
-Oh no, that's too accurate!
-The image is made up of mostly black, white, and blue-green,
-so the other colors are hardly coming through anymore.
-
-We can try increasing k, but now we have a lot of colors, and some are very similar.
+Let's get these colors in additional lightness levels using `-l`.
 
 ```bash
-> okolors 'img/Jewel Changi.jpg' -k 12 -n 4 -e 0.01 -o swatch
+> okolors 'img/Jewel Changi.jpg' -l 10,30,50,70 -n 4 -e 0.01 -o swatch
 ```
 
 ![](docs/swatch3.svg)
 
-Alternatively, let's ignore color lightness to merge similar colors together, thereby bringing out other colors in the process.
+If we're providing our own lightness levels, maybe we want to cluster the colors by hue and saturation only.
+Let's set the lightness weight to `0` using `-w`.
 
 ```bash
-> okolors 'img/Jewel Changi.jpg' --ignore-lightness -n 4 -e 0.01 -o swatch
+> okolors 'img/Jewel Changi.jpg' -w 0 -l 10,30,50,70 -n 4 -e 0.01 -o swatch
 ```
 
 ![](docs/swatch4.svg)
 
-That's better! Unfortunately, now white and black have been merged into a dark gray. We can, however, specify additional lightness levels to print the colors in with `-l`.
+That ended up bringing out an additional pinkish color but also merged white and black into a dark gray.
+So, use this at your own discretion!
+
+It seems that two of the colors are quite similiar. Let's reduce the number of colors, `k`, by 1.
 
 ```bash
-> okolors 'img/Jewel Changi.jpg' -l 10,30,50,70 --ignore-lightness -n 4 -e 0.01 -o swatch
+> okolors 'img/Jewel Changi.jpg' -k 7 -w 0 -l 10,30,50,70 -n 4 -e 0.01 -o swatch
 ```
 
 ![](docs/swatch5.svg)
