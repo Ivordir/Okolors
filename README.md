@@ -76,7 +76,7 @@ Let's set the lightness weight to `0` using `-w`.
 That ended up bringing out an additional pinkish color but also merged white and black into a dark gray.
 So, use this at your own discretion!
 
-It seems that two of the colors are quite similiar. Let's reduce the number of colors, `k`, by 1.
+It seems that two of the colors are quite similar. Let's reduce the number of colors, `k`, by 1.
 
 ```bash
 > okolors 'img/Jewel Changi.jpg' -k 7 -w 0 -l 10,30,50,70 -n 4 -e 0.01 -o swatch
