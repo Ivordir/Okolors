@@ -4,6 +4,10 @@ members = [
   "okolors-bin",
 ]
 
+[profile.release]
+strip = true
+
 [profile.time]
 inherits = "release"
+strip = false
 debug = true
