@@ -17,7 +17,7 @@
 use colored::Colorize;
 use image::{ImageBuffer, Rgb};
 use palette::{FromColor, Okhsl, Srgb};
-use std::{fmt, io, path::PathBuf, process::ExitCode};
+use std::{fmt, path::PathBuf, process::ExitCode};
 
 mod cli;
 use cli::{ColorizeOutput, FormatOutput, Options, SortOutput, LIGHTNESS_SCALE};
@@ -49,8 +49,10 @@ enum ImageLoadError {
 	/// Failed to read or decode the image file
 	ImageLoad(image::ImageError),
 	/// Failed to read the avif file
-	AvifRead(io::Error),
+	#[cfg(feature = "avif")]
+	AvifRead(std::io::Error),
 	/// Failed to decode the avif file
+	#[cfg(feature = "avif")]
 	AvifDecode(libavif_image::Error),
 }
 
@@ -59,7 +61,9 @@ impl fmt::Display for ImageLoadError {
 		use ImageLoadError::*;
 		match self {
 			ImageLoad(e) => write!(f, "Failed to load the image file: {e}"),
+			#[cfg(feature = "avif")]
 			AvifRead(e) => write!(f, "Failed to read the avif file: {e}"),
+			#[cfg(feature = "avif")]
 			AvifDecode(e) => write!(f, "Failed to decode the avif file: {e}"),
 		}
 	}
@@ -72,6 +76,7 @@ fn main() -> ExitCode {
 
 	let result = get_print_palette(&options);
 
+	// Returning Result<_> uses Debug printing instead of Display
 	if let Err(e) = result {
 		eprintln!("{e}");
 		ExitCode::FAILURE
@@ -94,14 +99,14 @@ fn get_print_palette(options: &Options) -> Result<(), ImageLoadError> {
 	Ok(())
 }
 
-/// Load an image from disk, generating an thumbnail if needed, and converting to Srgb<u8>
+/// Load an image from disk, generating an thumbnail if needed, and converting to [`Srgb<u8>`]
 fn get_pixels(options: &Options) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, ImageLoadError> {
 	time!(loading, load_image(&options.image)).map(|img| time!(thumbnail, get_thumbnail(img, options.max_pixels)))
 }
 
-/// Load Srgb pixels from an image path
+/// Load [`Srgb`] pixels from an image path
+#[cfg(feature = "avif")]
 fn load_image(path: &PathBuf) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, ImageLoadError> {
-	// TODO: handle errors more gracefully, providing helpful messages
 	let img = if path.extension().map_or(false, |ext| ext == "avif") {
 		let buf = std::fs::read(path).map_err(ImageLoadError::AvifRead)?;
 		libavif_image::read(&buf).map_err(ImageLoadError::AvifDecode)?
@@ -110,6 +115,12 @@ fn load_image(path: &PathBuf) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, ImageLoad
 	};
 
 	Ok(img.into_rgb8())
+}
+
+/// Load [`Srgb`] pixels from an image path
+#[cfg(not(feature = "avif"))]
+fn load_image(path: &PathBuf) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, ImageLoadError> {
+	Ok(image::open(path).map_err(ImageLoadError::ImageLoad)?.into_rgb8())
 }
 
 /// Create a thumbnail with `max_pixels` pixels if the image has more than `max_pixels` pixels
@@ -135,7 +146,7 @@ fn get_thumbnail(img: ImageBuffer<Rgb<u8>, Vec<u8>>, max_pixels: u32) -> ImageBu
 	}
 }
 
-/// Generate a palette from the given Srgb pixels and options
+/// Generate a palette from the given [`Srgb`] pixels and options
 fn get_palette(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, options: &Options) -> Vec<Okhsl> {
 	let data = time!(
 		preprocessing,
@@ -167,7 +178,7 @@ fn get_palette(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, options: &Options) -> Vec<Ok
 	sorted_colors(&kmeans, options)
 }
 
-/// Convert Oklab colors from k-means to Okhsl, sorting by the given metric.
+/// Convert [`Oklab`] colors from k-means to [`Okhsl`], sorting by the given metric.
 fn sorted_colors(kmeans: &okolors::KmeansResult, options: &Options) -> Vec<Okhsl> {
 	let mut avg_colors = kmeans
 		.centroids
