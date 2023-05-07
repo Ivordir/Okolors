@@ -100,7 +100,7 @@ struct KmeansState {
 }
 
 impl KmeansState {
-	/// Initialize a new `KmeansState` with `k` centers and `n` data points
+	/// Initialize a new [`KmeansState`] with `k` centers and `n` data points
 	fn new(k: u8, n: u32) -> Self {
 		Self {
 			centers: CenterData::new(k),

@@ -5,17 +5,15 @@
 //! ## Read an image file and get 5 average colors.
 //!
 //! ```no_run
-//! let pixels = image::open("some image").unwrap().into_rgb8();
-//! let srgb = palette::cast::from_component_slice(pixels.as_raw());
-//! let result = okolors::from_srgb(srgb, 0.325, 1, 5, 0.05, 64, 0);
+//! let img = image::open("some image").unwrap();
+//! let result = okolors::from_image(img, 0.325, 1, 5, 0.05, 64, 0);
 //! ```
 //!
 //! ## Run k-means multiple times with different parameters.
 //!
 //! ```no_run
-//! let pixels = image::open("some image").unwrap().into_rgb8();
-//! let srgb = palette::cast::from_component_slice(pixels.as_raw());
-//! let oklab = okolors::srgb_to_oklab_counts(srgb, 0.325);
+//! let img = image::open("some image").unwrap();
+//! let oklab = okolors::image_to_oklab_counts(img, 0.325);
 //!
 //! let avg5 = okolors::from_oklab_counts(&oklab, 1, 5, 0.05, 64, 0);
 //! let avg8 = okolors::from_oklab_counts(&oklab, 1, 8, 0.05, 64, 0);
@@ -26,9 +24,8 @@
 //! ## Run with different lightness weights.
 //!
 //! ```no_run
-//! let pixels = image::open("some image").unwrap().into_rgb8();
-//! let srgb = palette::cast::from_component_slice(pixels.as_raw());
-//! let mut oklab = okolors::srgb_to_oklab_counts(srgb, 0.325);
+//! let img = image::open("some image").unwrap();
+//! let mut oklab = okolors::image_to_oklab_counts(img, 0.325);
 //!
 //! let resultA = okolors::from_oklab_counts(&oklab, 1, 5, 0.05, 64, 0);
 //!
@@ -39,7 +36,7 @@
 //! # Arguments
 //!
 //! Here are explanations of the various arguments that are shared between
-//! [`okolors::from_srgb`] and [`okolors::from_oklab_counts`].
+//! [`okolors::from_image`], [`okolors::from_srgb`], and [`okolors::from_oklab_counts`].
 //!
 //! The [README](https://github.com/Ivordir/Okolors) contains some visual examples of the effects of the arguments below.
 //!
@@ -179,7 +176,32 @@ impl OklabCounts {
 	}
 }
 
-/// Runs k-means on the provided slice of Srgb colors.
+/// Runs k-means on the provided image. The image is assumed to be in the `sRGB` color space.
+///
+/// See the crate documentation for examples and information on each argument.
+#[cfg(feature = "image")]
+#[must_use]
+pub fn from_image(
+	image: image::DynamicImage,
+	lightness_weight: f32,
+	trials: u32,
+	k: u8,
+	convergence_threshold: f32,
+	max_iter: u32,
+	seed: u64,
+) -> KmeansResult {
+	from_srgb(
+		palette::cast::from_component_slice(image.into_rgb8().as_raw()),
+		lightness_weight,
+		trials,
+		k,
+		convergence_threshold,
+		max_iter,
+		seed,
+	)
+}
+
+/// Runs k-means on the provided slice of [`Srgb`] colors.
 ///
 /// See the crate documentation for examples and information on each argument.
 #[must_use]
@@ -202,12 +224,12 @@ pub fn from_srgb(
 	)
 }
 
-/// Runs k-means on a `OklabCounts` from `okolors::srgb_to_oklab_counts`
+/// Runs k-means on a [`OklabCounts`] from [`image_to_oklab_counts`] or [`srgb_to_oklab_counts`]
 ///
-/// Converting from Srgb to Oklab colors is expensive,
+/// Converting from [`Srgb`] to [`Oklab`] is expensive,
 /// so use this function if you need to run k-means multiple times on the same data but with different arguments.
-/// This function allows you to reuse the `OklabCounts` from `srgb_to_oklab_counts`,
-/// whereas `okolors::from_srgb` must recompute `OklabCounts` every time.
+/// This function allows you to reuse the [`OklabCounts`],
+/// whereas [`from_image`] and [`from_srgb`] must recompute [`OklabCounts`] every time.
 ///
 /// See the crate documentation for examples and information on each argument.
 #[must_use]
@@ -222,7 +244,7 @@ pub fn from_oklab_counts(
 	kmeans::run(oklab_counts, trials, k, convergence_threshold, max_iter, seed)
 }
 
-/// Converts a slice of Srgb colors to Oklab colors, merging duplicate Srgb colors in the process.
+/// Converts a slice of [`Srgb`] colors to [`Oklab`] colors, merging duplicate [`Srgb`] colors in the process.
 ///
 /// `lightness_weight` is used to scale down each color's lightness when performing color difference
 /// and should be in the range `0.0..=1.0`.
@@ -258,6 +280,19 @@ pub fn srgb_to_oklab_counts(pixels: &[Srgb<u8>], lightness_weight: f32) -> Oklab
 	data.set_lightness_weight(lightness_weight);
 
 	data
+}
+
+/// Converts an image's [`Srgb`] colors to [`Oklab`] colors, merging duplicate [`Srgb`] colors in the process.
+///
+/// `lightness_weight` is used to scale down each color's lightness when performing color difference
+/// and should be in the range `0.0..=1.0`.
+#[cfg(feature = "image")]
+#[must_use]
+pub fn image_to_oklab_counts(image: image::DynamicImage, lightness_weight: f32) -> OklabCounts {
+	srgb_to_oklab_counts(
+		palette::cast::from_component_slice(image.into_rgb8().as_raw()),
+		lightness_weight,
+	)
 }
 
 #[cfg(test)]

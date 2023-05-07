@@ -10,12 +10,13 @@ license = "MIT"
 keywords = ["palette", "theme", "color", "oklab", "kmeans"]
 categories = ["multimedia::images"]
 
+[features]
+default = ["image"]
+image = ["dep:image"]
+
 [dependencies]
-palette = "0.7.1"
+image = { version = "0.24.6", optional = true, default_features = false }
+palette = { version = "0.7.1", default_features = false, features = ["std"] }
 rand = "0.8.5"
 rand_chacha = "0.3.1"
 soa_derive = "0.12.0"
-
-[dev-dependencies]
-image = "0.24.6"
-palette = "0.7.1"
