@@ -101,7 +101,8 @@ fn get_print_palette(options: &Options) -> Result<(), ImageLoadError> {
 
 /// Load an image from disk, generating an thumbnail if needed, and converting to [`Srgb<u8>`]
 fn get_pixels(options: &Options) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, ImageLoadError> {
-	time!(loading, load_image(&options.image)).map(|img| time!(thumbnail, get_thumbnail(img, options.max_pixels)))
+	time!(loading, load_image(&options.image))
+		.map(|img| time!(thumbnail, get_thumbnail(img, options.max_pixels, options.verbose)))
 }
 
 /// Load [`Srgb`] pixels from an image path
@@ -124,7 +125,7 @@ fn load_image(path: &PathBuf) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, ImageLoad
 }
 
 /// Create a thumbnail with `max_pixels` pixels if the image has more than `max_pixels` pixels
-fn get_thumbnail(img: ImageBuffer<Rgb<u8>, Vec<u8>>, max_pixels: u32) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+fn get_thumbnail(img: ImageBuffer<Rgb<u8>, Vec<u8>>, max_pixels: u32, verbose: bool) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
 	// The number of pixels should be < u64::MAX, since image dimensions are (u32, u32)
 	let pixels = img.pixels().len() as u64;
 	if pixels <= u64::from(max_pixels) {
@@ -138,11 +139,13 @@ fn get_thumbnail(img: ImageBuffer<Rgb<u8>, Vec<u8>>, max_pixels: u32) -> ImageBu
 
 		// multiplying by a positive factor < 1
 		#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-		image::imageops::thumbnail(
-			&img,
-			(f64::from(width) * scale) as u32,
-			(f64::from(height) * scale) as u32,
-		)
+		let (thumb_width, thumb_height) = { ((f64::from(width) * scale) as u32, (f64::from(height) * scale) as u32) };
+
+		if verbose {
+			println!("Creating a thumbnail with dimensions {thumb_width}x{thumb_height}");
+		}
+
+		image::imageops::thumbnail(&img, thumb_width, thumb_height)
 	}
 }
 
@@ -155,6 +158,10 @@ fn get_palette(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, options: &Options) -> Vec<Ok
 			options.lightness_weight
 		)
 	);
+
+	if options.verbose {
+		println!("Reduced image to {} unique colors", data.num_colors());
+	}
 
 	let kmeans = time!(
 		kmeans,
