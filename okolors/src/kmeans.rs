@@ -3,7 +3,6 @@
 use crate::OklabCounts;
 use palette::Oklab;
 use rand::{Rng, SeedableRng};
-use soa_derive::{soa_zip, StructOfArray};
 
 /// Color difference/distance in a uniform color space
 trait ColorDifference {
@@ -35,17 +34,16 @@ impl ColorDifference for ChromaHueDistance {
 }
 
 /// Bookkeeping for each k-means data point
-#[derive(StructOfArray)]
 struct PointData {
 	/// Center assignment for this data point
-	assignment: u8,
+	assignment: Vec<u8>,
 	/// Weight of each data point used to randomly select starting centroids in k-means++
-	weight: f32,
+	weight: Vec<f32>,
 }
 
-impl PointDataVec {
-	/// Initialize Vecs to the given number data points
-	fn init(n: u32) -> Self {
+impl PointData {
+	/// Create a [`PointData`] with the given number data points
+	fn new(n: u32) -> Self {
 		let n = n as usize;
 		Self {
 			assignment: vec![0; n],
@@ -71,7 +69,7 @@ struct CenterData {
 }
 
 impl CenterData {
-	/// Initialize Vecs to the given number of centers
+	/// Create a [`CenterData`] with the given number of centers
 	fn new(k: u8) -> Self {
 		let k = usize::from(k);
 		Self {
@@ -96,7 +94,7 @@ struct KmeansState {
 	/// One fourth of the squared distance between each pairs of centers
 	distances: Vec<(u8, f32)>,
 	/// Data for each point
-	points: PointDataVec,
+	points: PointData,
 }
 
 impl KmeansState {
@@ -105,7 +103,7 @@ impl KmeansState {
 		Self {
 			centers: CenterData::new(k),
 			distances: vec![(0, 0.0); usize::from(k) * usize::from(k)],
-			points: PointDataVec::init(n),
+			points: PointData::new(n),
 		}
 	}
 }
@@ -164,7 +162,7 @@ fn kmeans_plus_plus<D: ColorDifference>(
 			Ok(sampler) => centroids.push(colors[sampler.sample(&mut rng)]),
 			Err(AllWeightsZero) => return, // all points exactly match a centroid
 			Err(InvalidWeight | NoItem | TooMany) => {
-				unreachable!("distances are >= 0 and data.len() is in 1..=u32::MAX")
+				unreachable!("distances are >= 0 and colors.len() is in 1..=u32::MAX")
 			},
 		}
 	}
@@ -172,7 +170,7 @@ fn kmeans_plus_plus<D: ColorDifference>(
 
 /// Initializes the center sums and counts based off the initial centroids
 fn compute_initial_sums(oklab: &OklabCounts, centers: &mut CenterData, assignment: &[u8]) {
-	for (color, &n, &center) in soa_zip!(oklab, [colors, counts], assignment) {
+	for ((color, n), &center) in oklab.iter().zip(assignment) {
 		let i = usize::from(center);
 		let nf = f64::from(n);
 		let sum = &mut centers.sum[i];
@@ -209,10 +207,10 @@ fn update_assignments<D: ColorDifference>(
 	oklab: &OklabCounts,
 	centers: &mut CenterData,
 	distances: &[(u8, f32)],
-	points: &mut PointDataVec,
+	points: &mut PointData,
 ) {
 	let k = centers.centroid.len();
-	for (&color, &n, center) in soa_zip!(oklab, [colors, counts], &mut points.assignment) {
+	for ((color, n), center) in oklab.iter().zip(&mut points.assignment) {
 		let ci = usize::from(*center);
 		let dist = D::squared_distance(color, centers.centroid[ci]);
 
@@ -260,7 +258,7 @@ fn update_assignments<D: ColorDifference>(
 /// For each center, update its centroid using the vector sums and compute deltas
 fn update_centroids<D: ColorDifference>(rng: &mut impl Rng, centers: &mut CenterData) -> f32 {
 	let mut total_delta = 0.0;
-	for (centroid, &n, sum) in soa_zip!(centers, [mut centroid, count, sum]) {
+	for ((centroid, &n), sum) in centers.centroid.iter_mut().zip(&centers.count).zip(&centers.sum) {
 		let new_centroid = if n == 0 {
 			// Float literals below are the min and max values achievable when converting from Srgb colors
 			Oklab {
@@ -312,13 +310,18 @@ fn kmeans<D: ColorDifference>(
 		}
 	}
 
-	let variance = soa_zip!(oklab, [colors, counts], &points.assignment)
-		.map(|(&color, &n, &center)| {
+	let variance = oklab
+		.iter()
+		.zip(&points.assignment)
+		.map(|((color, n), &center)| {
 			f64::from(n) * f64::from(D::squared_distance(color, centers.centroid[usize::from(center)]))
 		})
 		.sum();
 
-	let mut centroids = soa_zip!(&centers, [centroid, count])
+	let mut centroids = centers
+		.centroid
+		.iter()
+		.zip(&centers.count)
 		.filter_map(|(&color, &count)| if count == 0 { None } else { Some(color) })
 		.collect::<Vec<_>>();
 
@@ -545,7 +548,7 @@ mod tests {
 
 		let mut expected_sum = Oklab { l: 0.0, a: 0.0, b: 0.0 };
 		let mut expected_count = 0;
-		for (&color, &count) in soa_zip!(&data, [colors, counts]) {
+		for (color, count) in data.iter() {
 			expected_count += count;
 			let n = f64::from(count);
 			expected_sum.l += n * f64::from(color.l);
@@ -576,7 +579,7 @@ mod tests {
 
 		update_assignments::<EuclideanDistance>(&data, &mut state.centers, &state.distances, &mut state.points);
 
-		for (&color, &count, &center) in soa_zip!(&data, [colors, counts], &state.points.assignment) {
+		for ((color, count), &center) in data.iter().zip(&state.points.assignment) {
 			let center = usize::from(center);
 			let n = f64::from(count);
 			let sum = &mut state.centers.sum[center];

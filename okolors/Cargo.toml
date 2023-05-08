@@ -19,4 +19,3 @@ image = { version = "0.24.6", optional = true, default_features = false }
 palette = { version = "0.7.1", default_features = false, features = ["std"] }
 rand = "0.8.5"
 rand_chacha = "0.3.1"
-soa_derive = "0.12.0"
