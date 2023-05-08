@@ -153,6 +153,19 @@ impl OklabCounts {
 		}
 	}
 
+	/// Get the number of unique colors
+	#[must_use]
+	#[allow(clippy::cast_possible_truncation)]
+	pub fn num_colors(&self) -> u32 {
+		self.colors.len() as u32
+	}
+
+	/// Get the current lightness weight
+	#[must_use]
+	pub fn lightness_weight(&self) -> f32 {
+		self.lightness_weight
+	}
+
 	/// Change the lightness weight to provided value which should be in the range `0.0..=1.0`.
 	pub fn set_lightness_weight(&mut self, weight: f32) {
 		// Values outside this range do not make sense but will technically work, so this is a debug assert
