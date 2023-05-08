@@ -132,12 +132,12 @@ use std::collections::HashMap;
 mod kmeans;
 pub use kmeans::KmeansResult;
 
-/// Deduplicated Oklab colors converted from Srgb colors
+/// Deduplicated [`Oklab`] colors converted from [`Srgb`] colors
 #[derive(Debug, Clone)]
 pub struct OklabCounts {
 	/// Oklab colors
 	pub(crate) colors: Vec<Oklab>,
-	/// The number of duplicate Srgb pixels for each Oklab color
+	/// The number of duplicate [`Srgb`] pixels for each [`Oklab`] color
 	pub(crate) counts: Vec<u32>,
 	/// The value used to scale down the lightness of each color
 	pub(crate) lightness_weight: f32,
@@ -151,6 +151,23 @@ impl OklabCounts {
 			counts: Vec::new(),
 			lightness_weight: 1.0,
 		}
+	}
+
+	/// Get the underlying slice of [`Oklab`] colors
+	#[must_use]
+	pub fn colors(&self) -> &Vec<Oklab> {
+		&self.colors
+	}
+
+	/// Get the number of duplicate [`Srgb`] pixels for each [`Oklab`] color
+	#[must_use]
+	pub fn counts(&self) -> &Vec<u32> {
+		&self.counts
+	}
+
+	/// Returns an iterator over each `(Oklab, count: u32)` pair
+	pub fn iter(&self) -> impl Iterator<Item = (Oklab, u32)> + '_ {
+		self.colors.iter().copied().zip(self.counts.iter().copied())
 	}
 
 	/// Get the number of unique colors
