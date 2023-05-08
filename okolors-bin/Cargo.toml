@@ -15,16 +15,22 @@ name = "okolors"
 path = "src/main.rs"
 
 [features]
-default = ["gif", "webp", "qoi"]
+default = ["jpeg", "jpeg-rayon", "png", "gif", "webp", "qoi"]
+jpeg = ["image/jpeg"]
+jpeg-rayon = ["image/jpeg_rayon"]
+png = ["image/png"]
 gif = ["image/gif"]
 webp = ["image/webp"]
 qoi = ["image/qoi"]
 avif = ["libavif-image"]
+bmp = ["image/bmp"]
+ico = ["image/ico"]
+tiff = ["image/tiff"]
 time = []
 
 [dependencies]
 okolors = { path = "../okolors" }
-image = { version = "0.24.6", default_features = false, features = ["jpeg", "png", "jpeg_rayon"] }
+image = { version = "0.24.6", default_features = false }
 palette = { version = "0.7.1", default_features = false, features = ["std"] }
 clap = { version = "4.0.18", features = ["derive"] }
 colored = "2.0.0"
