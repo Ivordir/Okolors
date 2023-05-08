@@ -139,7 +139,7 @@ fn get_thumbnail(img: ImageBuffer<Rgb<u8>, Vec<u8>>, max_pixels: u32, verbose: b
 
 		// multiplying by a positive factor < 1
 		#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-		let (thumb_width, thumb_height) = { ((f64::from(width) * scale) as u32, (f64::from(height) * scale) as u32) };
+		let (thumb_width, thumb_height) = ((f64::from(width) * scale) as u32, (f64::from(height) * scale) as u32);
 
 		if verbose {
 			println!("Creating a thumbnail with dimensions {thumb_width}x{thumb_height}");
@@ -264,5 +264,38 @@ fn color_format_print(colors: &mut [Okhsl], options: &Options, delimiter: &str, 
 		}),
 
 		None => format_print(colors, options, delimiter, format),
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	fn load_img(image: &str) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+		load_image(&PathBuf::from(image)).expect("loaded image")
+	}
+
+	#[test]
+	fn thumbnail_has_at_most_max_pixels() {
+		let img = load_img("../img/Jewel Changi.jpg");
+		let (width, height) = img.dimensions();
+
+		assert!(width % 10 == 0 && height % 10 == 0);
+		let (width, height) = (width / 10, height / 10);
+
+		for dw in 0..5 {
+			for dh in 0..5 {
+				let width = width - dw;
+				let height = height - dh;
+				let max_pixels = width * height;
+				let thumb = get_thumbnail(img.clone(), max_pixels, false);
+
+				if dw == 0 && dh == 0 {
+					assert_eq!(thumb.pixels().len(), max_pixels as usize);
+				} else {
+					assert!(thumb.pixels().len() <= max_pixels as usize);
+				}
+			}
+		}
 	}
 }
