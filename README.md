@@ -18,13 +18,12 @@ because as the lightness is changed, Okhsl preserves the hue and saturation of t
 
 ## Notes
 
-Okolors uses the [`image`](https://github.com/image-rs/image) crate to load images
-and so should work with any image format supported by it.
-Although, currently only png, jpeg, and avif have been (somewhat) tested.
-Also, due an [issue](https://github.com/image-rs/image/issues/1647) with avif support in the image crate,
-avif support is currently handled using `aom`.
-So, loading avif images requires having `aom` on your system
-(e.g., [Arch package](https://archlinux.org/packages/extra/x86_64/aom/)).
+Okolors supports jpeg, png, gif, webp, and qoi images by default.
+
+Due an [issue](https://github.com/image-rs/image/issues/1647) with avif support in the `image` crate,
+the avif feature is currently not default and uses `aom` instead of `dav1d`.
+
+Other image formats not enabled by default include: ico, bmp, and tiff.
 
 # Examples
 
