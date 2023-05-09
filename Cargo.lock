@@ -399,15 +399,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
-name = "libaom-sys"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc817c7fad55e49c6cb3dcb1344ca012d9239c128ee3d723ffaf5d03e7115b0c"
-dependencies = [
- "cmake",
-]
-
-[[package]]
 name = "libavif"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -433,8 +424,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6d686efe0bc699e6ba3254f6b62d3fa2306b2308cbc2825d6a6a0b8170cfa29f"
 dependencies = [
  "cmake",
- "libaom-sys",
  "libc",
+ "libdav1d-sys",
 ]
 
 [[package]]
@@ -442,6 +433,12 @@ name = "libc"
 version = "0.2.143"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edc207893e85c5d6be840e969b496b53d94cec8be2d501b214f50daa97fa8024"
+
+[[package]]
+name = "libdav1d-sys"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2449c0cf51b69ae65edb12fa071063e5a51034a8b2347269b5a40aefe2071fcf"
 
 [[package]]
 name = "linux-raw-sys"

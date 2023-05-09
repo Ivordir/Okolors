@@ -27,10 +27,11 @@ WebP support is not enabled by default, as it seems that the `image` crate still
 [4](https://github.com/image-rs/image/issues/1647).
 Panics and bugs resulting from this should be directed upstream.
 
-Due an [issue](https://github.com/image-rs/image/issues/1647) with avif support in the `image` crate,
-the avif feature is currently not default and uses `aom` instead of `dav1d`.
+Similarly, due an [issue](https://github.com/image-rs/image/issues/1647) with avif support in the `image` crate,
+the avif feature for Okolors is not enabled by default and instead uses the `libavif-image` crate.
+Compiling with this feature requires cmake and nasm on the system.
 
-Other image formats not enabled by default include: ico, bmp, and tiff.
+Other image formats not enabled by default include bmp and tiff.
 
 # Examples
 
