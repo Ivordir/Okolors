@@ -86,8 +86,11 @@ pub struct Options {
 
 	/// The value used to scale down the influence of the lightness component on color difference
 	///
-	/// Lower weights have the effect of bringing out more distinct hues and also tends to be faster.
-	/// A value around 0.325 seems to provide similar results to the CIELAB color space.
+	/// Lower weights have the effect of bringing out more distinct hues,
+	/// but the resulting colors will technically not be accurate, perceptual averages for the colors in the image.
+	/// I.e., this is a subjective option you can tweak to get different kind of color palettes.
+	/// A value around 0.325 seems to provide somewhat similar results to the CIELAB color space,
+	/// whereas a value of 1.0 indicates to provide results while staying true to the Oklab color space.
 	/// Provided values should be in the range [0.0, 1.0].
 	#[arg(short = 'w', long, default_value_t = 0.325, value_parser = parse_valid_lightness_weight)]
 	pub lightness_weight: f32,
