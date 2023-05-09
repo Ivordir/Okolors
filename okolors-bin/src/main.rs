@@ -277,7 +277,8 @@ mod tests {
 
 	#[test]
 	fn thumbnail_has_at_most_max_pixels() {
-		let img = load_img("../img/Jewel Changi.jpg");
+		// Use scaled down image for reduced running time
+		let img = load_img("../img/formats/Jewel Changi.webp");
 		let (width, height) = img.dimensions();
 
 		assert!(width % 10 == 0 && height % 10 == 0);
@@ -297,5 +298,57 @@ mod tests {
 				}
 			}
 		}
+	}
+
+	fn test_format(ext: &str) {
+		let _img = load_img(&format!("../img/formats/Jewel Changi.{ext}"));
+	}
+
+	#[test]
+	#[cfg(any(feature = "jpeg", feature = "jpeg_rayon"))]
+	fn load_jpeg() {
+		test_format("jpg");
+	}
+
+	#[test]
+	#[cfg(feature = "png")]
+	fn load_png() {
+		test_format("png");
+	}
+
+	#[test]
+	#[cfg(feature = "gif")]
+	fn load_gif() {
+		let _img = load_img("../img/formats/kmeans.gif");
+	}
+
+	#[test]
+	#[cfg(feature = "webp")]
+	fn load_webp() {
+		test_format("webp");
+	}
+
+	#[test]
+	#[cfg(feature = "qoi")]
+	fn load_qoi() {
+		test_format("qoi");
+	}
+
+	#[test]
+	#[cfg(feature = "avif")]
+	fn load_avif() {
+		test_format("avif");
+	}
+
+	#[test]
+	#[cfg(feature = "bmp")]
+	fn load_bmp() {
+		test_format("bmp");
+	}
+
+	#[test]
+	#[cfg(feature = "tiff")]
+	fn load_tiff() {
+		test_format("tiff");
 	}
 }
