@@ -278,7 +278,7 @@ mod tests {
 	#[test]
 	fn thumbnail_has_at_most_max_pixels() {
 		// Use scaled down image for reduced running time
-		let img = load_img("../img/formats/Jewel Changi.webp");
+		let img = load_img("../img/formats/Jewel Changi.jpg");
 		let (width, height) = img.dimensions();
 
 		assert!(width % 10 == 0 && height % 10 == 0);

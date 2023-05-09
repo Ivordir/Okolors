@@ -15,7 +15,7 @@ name = "okolors"
 path = "src/main.rs"
 
 [features]
-default = ["jpeg", "jpeg_rayon", "png", "gif", "webp", "qoi"]
+default = ["jpeg", "jpeg_rayon", "png", "gif", "qoi"]
 jpeg = ["image/jpeg"]
 jpeg_rayon = ["image/jpeg_rayon"]
 png = ["image/png"]
