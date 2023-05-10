@@ -11,6 +11,25 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  lint_fmt:
+    name: Lint and format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install latest stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          components: rustfmt, clippy
+
+      - name: Lint
+        run: cargo clippy --all-features -- -D warnings
+
+      - name: Format
+        run: cargo fmt -- --check
+
   build_test:
     name: Build and test
     runs-on: ${{ matrix.os }}
@@ -34,26 +53,7 @@ jobs:
         run: cargo test
 
       - name: Build (all features)
-        run: cargo build --features webp,bmp,tiff
+        run: cargo build --features webp,avif,bmp,tiff
 
       - name: Test (all features)
-        run: cargo test --features webp,bmp,tiff
-
-  lint_fmt:
-    name: Lint and format
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Install latest stable
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          components: rustfmt, clippy
-
-      - name: Lint
-        run: cargo clippy --all-features -- -D warnings
-
-      - name: Format
-        run: cargo fmt -- --check
+        run: cargo test --features webp,avif,bmp,tiff
