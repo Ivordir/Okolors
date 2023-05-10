@@ -20,14 +20,14 @@ because as the lightness is changed, Okhsl preserves the hue and saturation of t
 
 Okolors supports jpeg, png, gif, and qoi images by default.
 
-WebP support is not enabled by default, as it seems that the `image` crate still has lingering bugs for webp in certain cases:
+WebP support is not enabled by default, as it seems that the `image` crate still has lingering bugs for WebP in certain cases:
 [1](https://github.com/image-rs/image/issues/1873),
 [2](https://github.com/image-rs/image/issues/1872),
 [3](https://github.com/image-rs/image/issues/1712),
 [4](https://github.com/image-rs/image/issues/1647).
 Panics and bugs resulting from this should be directed upstream.
 
-Similarly, due an [issue](https://github.com/image-rs/image/issues/1647) with avif support in the `image` crate,
+Similarly, due an [issue](https://github.com/image-rs/image/issues/1647) with AVIF support in the `image` crate,
 the avif feature for Okolors is not enabled by default and instead uses the `libavif-image` crate.
 Compiling with this feature requires cmake and nasm on the system.
 
