@@ -24,6 +24,9 @@ jobs:
           profile: minimal
           components: rustfmt, clippy
 
+      - name: Install dav1d build dependencies
+      - run: sudo apt update && sudo apt install ninja-build meson nasm
+
       - name: Lint
         run: cargo clippy --all-features -- -D warnings
 
@@ -46,14 +49,30 @@ jobs:
           toolchain: stable
           profile: minimal
 
-      - name: Build (default features)
-        run: cargo build
+      - name: Build
+        run: cargo build --features webp,bmp,tiff
 
-      - name: Test (default features)
-        run: cargo test
+      - name: Test
+        run: cargo test --features webp,bmp,tiff
 
-      - name: Build (all features)
-        run: cargo build --features webp,avif,bmp,tiff
+  build_test_avif:
+    name: Build and test avif feature
+    runs-on: ubuntu-latest
 
-      - name: Test (all features)
-        run: cargo test --features webp,avif,bmp,tiff
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install latest stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: Install dav1d build dependencies
+      - run: sudo apt update && sudo apt install ninja-build meson nasm
+
+      - name: Build
+        run: cargo build --features avif
+
+      - name: Test
+        run: cargo test --features avif
