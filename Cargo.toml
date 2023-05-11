@@ -7,6 +7,9 @@ members = [
 [profile.release]
 strip = true
 
+[profile.bench]
+strip = false
+
 [profile.time]
 inherits = "release"
 strip = false
