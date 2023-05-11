@@ -15,7 +15,7 @@
 #![allow(clippy::unreadable_literal)]
 
 use colored::Colorize;
-use image::{ImageBuffer, Rgb};
+use image::RgbImage;
 use palette::{FromColor, Okhsl, Srgb};
 use std::{fmt, path::PathBuf, process::ExitCode};
 
@@ -100,14 +100,14 @@ fn get_print_palette(options: &Options) -> Result<(), ImageLoadError> {
 }
 
 /// Load an image from disk, generating an thumbnail if needed, and converting to [`Srgb<u8>`]
-fn get_pixels(options: &Options) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, ImageLoadError> {
+fn get_pixels(options: &Options) -> Result<RgbImage, ImageLoadError> {
 	time!(loading, load_image(&options.image))
 		.map(|img| time!(thumbnail, get_thumbnail(img, options.max_pixels, options.verbose)))
 }
 
 /// Load [`Srgb`] pixels from an image path
 #[cfg(feature = "avif")]
-fn load_image(path: &PathBuf) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, ImageLoadError> {
+fn load_image(path: &PathBuf) -> Result<RgbImage, ImageLoadError> {
 	let img = if path.extension().map_or(false, |ext| ext == "avif") {
 		let buf = std::fs::read(path).map_err(ImageLoadError::AvifRead)?;
 		libavif_image::read(&buf).map_err(ImageLoadError::AvifDecode)?
@@ -120,22 +120,22 @@ fn load_image(path: &PathBuf) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, ImageLoad
 
 /// Load [`Srgb`] pixels from an image path
 #[cfg(not(feature = "avif"))]
-fn load_image(path: &PathBuf) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, ImageLoadError> {
+fn load_image(path: &PathBuf) -> Result<RgbImage, ImageLoadError> {
 	Ok(image::open(path).map_err(ImageLoadError::ImageLoad)?.into_rgb8())
 }
 
 /// Create a thumbnail with `max_pixels` pixels if the image has more than `max_pixels` pixels
-fn get_thumbnail(img: ImageBuffer<Rgb<u8>, Vec<u8>>, max_pixels: u32, verbose: bool) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+fn get_thumbnail(image: RgbImage, max_pixels: u32, verbose: bool) -> RgbImage {
 	// The number of pixels should be < u64::MAX, since image dimensions are (u32, u32)
-	let pixels = img.pixels().len() as u64;
+	let pixels = image.pixels().len() as u64;
 	if pixels <= u64::from(max_pixels) {
-		img
+		image
 	} else {
 		// (u64 as f64) only gives innaccurate results for very large u64
 		// I.e, only when pixels is in the order of quintillions
 		#[allow(clippy::cast_precision_loss)]
 		let scale = (f64::from(max_pixels) / pixels as f64).sqrt();
-		let (width, height) = img.dimensions();
+		let (width, height) = image.dimensions();
 
 		// multiplying by a positive factor < 1
 		#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -145,18 +145,15 @@ fn get_thumbnail(img: ImageBuffer<Rgb<u8>, Vec<u8>>, max_pixels: u32, verbose: b
 			println!("Creating a thumbnail with dimensions {thumb_width}x{thumb_height}");
 		}
 
-		image::imageops::thumbnail(&img, thumb_width, thumb_height)
+		image::imageops::thumbnail(&image, thumb_width, thumb_height)
 	}
 }
 
 /// Generate a palette from the given [`Srgb`] pixels and options
-fn get_palette(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, options: &Options) -> Vec<Okhsl> {
+fn get_palette(image: &RgbImage, options: &Options) -> Vec<Okhsl> {
 	let data = time!(
 		preprocessing,
-		okolors::srgb_to_oklab_counts(
-			palette::cast::from_component_slice(img.as_raw()),
-			options.lightness_weight
-		)
+		okolors::OklabCounts::from_rgbimage(image, options.lightness_weight)
 	);
 
 	if options.verbose {
@@ -271,7 +268,7 @@ fn color_format_print(colors: &mut [Okhsl], options: &Options, delimiter: &str, 
 mod tests {
 	use super::*;
 
-	fn load_img(image: &str) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+	fn load_img(image: &str) -> RgbImage {
 		load_image(&PathBuf::from(image)).expect("loaded image")
 	}
 
@@ -323,15 +320,15 @@ mod tests {
 	}
 
 	#[test]
-	#[cfg(feature = "webp")]
-	fn load_webp() {
-		test_format("webp");
-	}
-
-	#[test]
 	#[cfg(feature = "qoi")]
 	fn load_qoi() {
 		test_format("qoi");
+	}
+
+	#[test]
+	#[cfg(feature = "webp")]
+	fn load_webp() {
+		test_format("webp");
 	}
 
 	#[test]

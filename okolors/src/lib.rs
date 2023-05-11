@@ -6,14 +6,14 @@
 //!
 //! ```no_run
 //! let img = image::open("some image").unwrap();
-//! let result = okolors::from_image(img, 0.325, 1, 5, 0.05, 64, 0);
+//! let result = okolors::from_image(&img, 0.325, 1, 5, 0.05, 64, 0);
 //! ```
 //!
 //! ## Run k-means multiple times with different parameters.
 //!
 //! ```no_run
 //! let img = image::open("some image").unwrap();
-//! let oklab = okolors::image_to_oklab_counts(img, 0.325);
+//! let oklab = okolors::OklabCounts::from_image(&img, 0.325);
 //!
 //! let avg5 = okolors::from_oklab_counts(&oklab, 1, 5, 0.05, 64, 0);
 //! let avg8 = okolors::from_oklab_counts(&oklab, 1, 8, 0.05, 64, 0);
@@ -25,7 +25,7 @@
 //!
 //! ```no_run
 //! let img = image::open("some image").unwrap();
-//! let mut oklab = okolors::image_to_oklab_counts(img, 0.325);
+//! let mut oklab = okolors::OklabCounts::from_image(&img, 0.325);
 //!
 //! let resultA = okolors::from_oklab_counts(&oklab, 1, 5, 0.05, 64, 0);
 //!
@@ -126,6 +126,7 @@
 #![allow(clippy::enum_glob_use)]
 #![allow(clippy::unreadable_literal)]
 
+use image::{DynamicImage, RgbImage};
 use palette::{FromColor, Oklab, Srgb};
 use std::collections::HashMap;
 
@@ -153,7 +154,7 @@ impl OklabCounts {
 		}
 	}
 
-	/// Get the underlying slice of [`Oklab`] colors
+	/// Get the underlying Vec of [`Oklab`] colors
 	#[must_use]
 	pub fn colors(&self) -> &Vec<Oklab> {
 		&self.colors
@@ -204,31 +205,64 @@ impl OklabCounts {
 
 		self.lightness_weight = weight;
 	}
-}
 
-/// Runs k-means on the provided image. The image is assumed to be in the `sRGB` color space.
-///
-/// See the crate documentation for examples and information on each argument.
-#[cfg(feature = "image")]
-#[must_use]
-pub fn from_image(
-	image: image::DynamicImage,
-	lightness_weight: f32,
-	trials: u32,
-	k: u8,
-	convergence_threshold: f32,
-	max_iter: u32,
-	seed: u64,
-) -> KmeansResult {
-	from_srgb(
-		palette::cast::from_component_slice(image.into_rgb8().as_raw()),
-		lightness_weight,
-		trials,
-		k,
-		convergence_threshold,
-		max_iter,
-		seed,
-	)
+	/// Converts a slice of [`Srgb`] colors to [`Oklab`] colors, merging duplicate [`Srgb`] colors in the process.
+	///
+	/// `lightness_weight` is used to scale down each color's lightness when performing color difference
+	/// and should be in the range `0.0..=1.0`.
+	#[must_use]
+	pub fn from_srgb(pixels: &[Srgb<u8>], lightness_weight: f32) -> Self {
+		let mut data = OklabCounts::new();
+
+		// Converting from Srgb to Oklab is expensive.
+		// Memoizing the results almost halves the time needed.
+		// This also groups identical pixels, speeding up k-means.
+
+		// Packed Srgb -> data index
+		let mut memo: HashMap<u32, u32> = HashMap::new();
+
+		// Convert to an Oklab color, merging entries as necessary
+		for srgb in pixels {
+			let key = srgb.into_u32::<palette::rgb::channels::Rgba>();
+			let index = *memo.entry(key).or_insert_with(|| {
+				let color = Oklab::from_color(srgb.into_format());
+
+				// data.len() < u32::MAX because there are only (2^8)^3 < u32::MAX possible sRGB colors
+				#[allow(clippy::cast_possible_truncation)]
+				let index = data.colors.len() as u32;
+
+				data.colors.push(color);
+				data.counts.push(0);
+				index
+			});
+
+			data.counts[index as usize] += 1;
+		}
+
+		data.set_lightness_weight(lightness_weight);
+
+		data
+	}
+
+	/// Converts an [`RgbImage`]'s colors to [`Oklab`] colors, merging duplicate [`Srgb`] colors in the process.
+	///
+	/// `lightness_weight` is used to scale down each color's lightness when performing color difference
+	/// and should be in the range `0.0..=1.0`.
+	#[cfg(feature = "image")]
+	#[must_use]
+	pub fn from_rgbimage(image: &RgbImage, lightness_weight: f32) -> Self {
+		Self::from_srgb(palette::cast::from_component_slice(image.as_raw()), lightness_weight)
+	}
+
+	/// Converts an image's [`Srgb`] colors to [`Oklab`] colors, merging duplicate [`Srgb`] colors in the process.
+	///
+	/// `lightness_weight` is used to scale down each color's lightness when performing color difference
+	/// and should be in the range `0.0..=1.0`.
+	#[cfg(feature = "image")]
+	#[must_use]
+	pub fn from_image(image: &DynamicImage, lightness_weight: f32) -> Self {
+		Self::from_rgbimage(&image.to_rgb8(), lightness_weight)
+	}
 }
 
 /// Runs k-means on the provided slice of [`Srgb`] colors.
@@ -245,7 +279,7 @@ pub fn from_srgb(
 	seed: u64,
 ) -> KmeansResult {
 	from_oklab_counts(
-		&srgb_to_oklab_counts(pixels, lightness_weight),
+		&OklabCounts::from_srgb(pixels, lightness_weight),
 		trials,
 		k,
 		convergence_threshold,
@@ -254,12 +288,60 @@ pub fn from_srgb(
 	)
 }
 
-/// Runs k-means on a [`OklabCounts`] from [`image_to_oklab_counts`] or [`srgb_to_oklab_counts`]
+/// Runs k-means on the provided [`RgbImage`]. The image is assumed to be in the `sRGB` color space.
+///
+/// See the crate documentation for examples and information on each argument.
+#[cfg(feature = "image")]
+#[must_use]
+pub fn from_rgbimage(
+	image: &RgbImage,
+	lightness_weight: f32,
+	trials: u32,
+	k: u8,
+	convergence_threshold: f32,
+	max_iter: u32,
+	seed: u64,
+) -> KmeansResult {
+	from_oklab_counts(
+		&OklabCounts::from_rgbimage(image, lightness_weight),
+		trials,
+		k,
+		convergence_threshold,
+		max_iter,
+		seed,
+	)
+}
+
+/// Runs k-means on the provided image. The image is assumed to be in the `sRGB` color space.
+///
+/// See the crate documentation for examples and information on each argument.
+#[cfg(feature = "image")]
+#[must_use]
+pub fn from_image(
+	image: &DynamicImage,
+	lightness_weight: f32,
+	trials: u32,
+	k: u8,
+	convergence_threshold: f32,
+	max_iter: u32,
+	seed: u64,
+) -> KmeansResult {
+	from_oklab_counts(
+		&OklabCounts::from_image(image, lightness_weight),
+		trials,
+		k,
+		convergence_threshold,
+		max_iter,
+		seed,
+	)
+}
+
+/// Runs k-means on a [`OklabCounts`].
 ///
 /// Converting from [`Srgb`] to [`Oklab`] is expensive,
 /// so use this function if you need to run k-means multiple times on the same data but with different arguments.
 /// This function allows you to reuse the [`OklabCounts`],
-/// whereas [`from_image`] and [`from_srgb`] must recompute [`OklabCounts`] every time.
+/// whereas [`from_image`], [`from_rgbimage`], and [`from_srgb`] must recompute [`OklabCounts`] every time.
 ///
 /// See the crate documentation for examples and information on each argument.
 #[must_use]
@@ -272,57 +354,6 @@ pub fn from_oklab_counts(
 	seed: u64,
 ) -> KmeansResult {
 	kmeans::run(oklab_counts, trials, k, convergence_threshold, max_iter, seed)
-}
-
-/// Converts a slice of [`Srgb`] colors to [`Oklab`] colors, merging duplicate [`Srgb`] colors in the process.
-///
-/// `lightness_weight` is used to scale down each color's lightness when performing color difference
-/// and should be in the range `0.0..=1.0`.
-#[must_use]
-pub fn srgb_to_oklab_counts(pixels: &[Srgb<u8>], lightness_weight: f32) -> OklabCounts {
-	let mut data = OklabCounts::new();
-
-	// Converting from Srgb to Oklab is expensive.
-	// Memoizing the results almost halves the time needed.
-	// This also groups identical pixels, speeding up k-means.
-
-	// Packed Srgb -> data index
-	let mut memo: HashMap<u32, u32> = HashMap::new();
-
-	// Convert to an Oklab color, merging entries as necessary
-	for srgb in pixels {
-		let key = srgb.into_u32::<palette::rgb::channels::Rgba>();
-		let index = *memo.entry(key).or_insert_with(|| {
-			let color = Oklab::from_color(srgb.into_format());
-
-			// data.len() < u32::MAX because there are only (2^8)^3 < u32::MAX possible sRGB colors
-			#[allow(clippy::cast_possible_truncation)]
-			let index = data.colors.len() as u32;
-
-			data.colors.push(color);
-			data.counts.push(0);
-			index
-		});
-
-		data.counts[index as usize] += 1;
-	}
-
-	data.set_lightness_weight(lightness_weight);
-
-	data
-}
-
-/// Converts an image's [`Srgb`] colors to [`Oklab`] colors, merging duplicate [`Srgb`] colors in the process.
-///
-/// `lightness_weight` is used to scale down each color's lightness when performing color difference
-/// and should be in the range `0.0..=1.0`.
-#[cfg(feature = "image")]
-#[must_use]
-pub fn image_to_oklab_counts(image: image::DynamicImage, lightness_weight: f32) -> OklabCounts {
-	srgb_to_oklab_counts(
-		palette::cast::from_component_slice(image.into_rgb8().as_raw()),
-		lightness_weight,
-	)
 }
 
 #[cfg(test)]
