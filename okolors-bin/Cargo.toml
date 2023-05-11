@@ -7,6 +7,7 @@ description = "Generates a color palette for an image by performing k-means clus
 homepage = "https://github.com/Ivordir/okcolors"
 repository = "https://github.com/Ivordir/okcolors"
 license = "MIT"
+readme = "../README.md"
 keywords = ["palette", "theme", "color", "oklab", "kmeans"]
 categories = ["command-line-utilities", "multimedia::images"]
 
