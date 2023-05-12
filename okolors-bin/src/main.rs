@@ -11,6 +11,7 @@
 #![warn(missing_docs, clippy::missing_docs_in_private_items, rustdoc::all)]
 #![warn(clippy::float_cmp_const, clippy::lossy_float_literal)]
 #![allow(clippy::module_name_repetitions)]
+#![allow(clippy::many_single_char_names)]
 #![allow(clippy::enum_glob_use)]
 #![allow(clippy::unreadable_literal)]
 

@@ -9,8 +9,4 @@ strip = true
 
 [profile.bench]
 strip = false
-
-[profile.time]
-inherits = "release"
-strip = false
 debug = true

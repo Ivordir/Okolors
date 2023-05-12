@@ -30,6 +30,9 @@ jobs:
       - name: Lint
         run: cargo clippy --all-features -- -D warnings
 
+      - name: Lint (no threading or avif)
+        run: cargo clippy --no-default-features --features default_formats -- -D warnings
+
       - name: Format
         run: cargo fmt -- --check
 
@@ -55,6 +58,12 @@ jobs:
       - name: Test
         run: cargo test --features webp,bmp,tiff
 
+      - name: Build (no threading)
+        run: cargo build --no-default-features --features default_formats
+
+      - name: Test (no threading)
+        run: cargo test --no-default-features --features default_formats
+
   build_test_avif:
     name: Build and test avif feature
     runs-on: ubuntu-latest
@@ -76,3 +85,9 @@ jobs:
 
       - name: Test
         run: cargo test --features avif
+
+      - name: Build (no threading)
+        run: cargo build --no-default-features --features default_formats,avif
+
+      - name: Test (no threading)
+        run: cargo test --no-default-features --features default_formats,avif

@@ -16,7 +16,9 @@ name = "okolors"
 path = "src/main.rs"
 
 [features]
-default = ["jpeg", "jpeg_rayon", "png", "gif", "qoi"]
+default = ["threads", "default_formats"]
+default_formats = ["jpeg", "jpeg_rayon", "png", "gif", "qoi"]
+threads = ["okolors/threads"]
 jpeg = ["image/jpeg"]
 jpeg_rayon = ["image/jpeg_rayon"]
 png = ["image/png"]

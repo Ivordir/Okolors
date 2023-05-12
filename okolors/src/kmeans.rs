@@ -203,6 +203,7 @@ fn update_distances<D: ColorDifference>(centroids: &[Oklab], distances: &mut [(u
 }
 
 /// For each data point, update its assigned center
+#[cfg(not(feature = "threads"))]
 fn update_assignments<D: ColorDifference>(
 	oklab: &OklabCounts,
 	centers: &mut CenterData,
@@ -251,6 +252,92 @@ fn update_assignments<D: ColorDifference>(
 			centers.count[cj] += n;
 
 			*center = min_center;
+		}
+	}
+}
+
+/// For each data point, update its assigned center
+#[cfg(feature = "threads")]
+fn update_assignments<D: ColorDifference>(
+	oklab: &OklabCounts,
+	centers: &mut CenterData,
+	distances: &[(u8, f32)],
+	points: &mut PointData,
+) {
+	use rayon::prelude::*;
+
+	let k = centers.centroid.len();
+	let deltas = points
+		.assignment
+		.par_iter_mut()
+		.zip(&oklab.colors)
+		.zip(&oklab.counts)
+		.fold_with(
+			(vec![Oklab { l: 0.0, a: 0.0, b: 0.0 }; k], vec![0; k]),
+			|(mut sums, mut counts), ((center, &color), &n)| {
+				let ci = usize::from(*center);
+				let dist = D::squared_distance(color, centers.centroid[ci]);
+
+				// Find the closest center
+				let mut min_dist = dist;
+				let mut min_center = *center;
+				for &(other_center, half_dist) in &distances[(ci * k + 1)..((ci + 1) * k)] {
+					if dist < half_dist {
+						break;
+					}
+
+					let other_dist = D::squared_distance(color, centers.centroid[usize::from(other_center)]);
+					if other_dist < min_dist {
+						min_dist = other_dist;
+						min_center = other_center;
+					}
+				}
+
+				// Move this point to its new center
+				if min_center != *center {
+					let nf = f64::from(n);
+					let n = i64::from(n);
+					let l = nf * f64::from(color.l);
+					let a = nf * f64::from(color.a);
+					let b = nf * f64::from(color.b);
+
+					let old_sum = &mut sums[ci];
+					old_sum.l -= l;
+					old_sum.a -= a;
+					old_sum.b -= b;
+					counts[ci] -= n;
+
+					let cj = usize::from(min_center);
+
+					let new_sum = &mut sums[cj];
+					new_sum.l += l;
+					new_sum.a += a;
+					new_sum.b += b;
+					counts[cj] += n;
+
+					*center = min_center;
+				}
+
+				(sums, counts)
+			},
+		)
+		.collect::<Vec<_>>();
+
+	for (delta_sums, delta_counts) in deltas {
+		for (sum, delta_sum) in centers.sum.iter_mut().zip(&delta_sums) {
+			sum.l += delta_sum.l;
+			sum.a += delta_sum.a;
+			sum.b += delta_sum.b;
+		}
+		#[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+		for (count, &delta_count) in centers.count.iter_mut().zip(&delta_counts) {
+			let new_count = i64::from(*count) + delta_count;
+			// Each center count is the sum of the counts of its points,
+			// so moving all points out of this center cannot give a negative value.
+			// Similarly, since the sum of the counts of all points is <= u32::MAX,
+			// then moving all point into this center cannot give a value > u32::MAX.
+			debug_assert!(u32::try_from(new_count).is_ok());
+			*count = new_count as u32;
 		}
 	}
 }

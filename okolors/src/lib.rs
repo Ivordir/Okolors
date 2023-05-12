@@ -123,6 +123,7 @@
 #![warn(missing_docs, clippy::missing_docs_in_private_items, rustdoc::all)]
 #![warn(clippy::float_cmp_const, clippy::lossy_float_literal)]
 #![allow(clippy::module_name_repetitions)]
+#![allow(clippy::many_single_char_names)]
 #![allow(clippy::enum_glob_use)]
 #![allow(clippy::unreadable_literal)]
 
@@ -146,7 +147,8 @@ pub struct OklabCounts {
 
 impl OklabCounts {
 	/// Create an `OklabCounts` with empty Vecs and a lightness weight of `1.0`
-	const fn new() -> Self {
+	#[must_use]
+	pub const fn new() -> Self {
 		Self {
 			colors: Vec::new(),
 			counts: Vec::new(),
@@ -210,37 +212,80 @@ impl OklabCounts {
 	///
 	/// `lightness_weight` is used to scale down each color's lightness when performing color difference
 	/// and should be in the range `0.0..=1.0`.
+	#[cfg(feature = "threads")]
 	#[must_use]
 	pub fn from_srgb(pixels: &[Srgb<u8>], lightness_weight: f32) -> Self {
-		let mut data = OklabCounts::new();
+		use rayon::prelude::*;
 
-		// Converting from Srgb to Oklab is expensive.
-		// Memoizing the results almost halves the time needed.
-		// This also groups identical pixels, speeding up k-means.
+		// Converting from Srgb to Oklab is expensive, so let's group identical pixels.
+		// This will also have the effect of speeding up k-means, since there will be less data points.
 
-		// Packed Srgb -> data index
-		let mut memo: HashMap<u32, u32> = HashMap::new();
+		/// The format used to convert an Srgb pixel into a u32 for fast hashing/deduplication
+		type Packed = palette::rgb::channels::Rgba;
+
+		let mut thread_counts = pixels
+			.par_iter()
+			// setting min_len reduces the number of intermediate HashMaps (needed to be joined at the end, etc.)
+			.with_min_len(pixels.len() / rayon::current_num_threads())
+			.fold_with(HashMap::new(), |mut counts, srgb| {
+				let key = srgb.into_u32::<Packed>();
+				*counts.entry(key).or_insert(0) += 1_u32;
+				counts
+			})
+			.collect::<Vec<_>>();
+
+		// Merge counts from each thread
+		let mut counts = thread_counts.pop().expect("one thread");
+		for other_counts in thread_counts {
+			for (key, add_count) in other_counts {
+				*counts.entry(key).or_insert(0) += add_count;
+			}
+		}
+
+		// Rayon splits the pixel array in a non-deterministic manner (especially since we use current_num_threads()),
+		// so we sort the final data to make results deterministic again.
+		let mut temp_data = counts.into_iter().collect::<Vec<_>>();
+		temp_data.par_sort();
+
+		let (colors, counts) = temp_data
+			.into_par_iter()
+			.map(|(key, count)| (Oklab::from_color(Srgb::from_u32::<Packed>(key).into_format()), count))
+			.unzip();
+
+		let mut data = OklabCounts { colors, counts, lightness_weight: 1.0 };
+		data.set_lightness_weight(lightness_weight);
+		data
+	}
+
+	/// Converts a slice of [`Srgb`] colors to [`Oklab`] colors, merging duplicate [`Srgb`] colors in the process.
+	///
+	/// `lightness_weight` is used to scale down each color's lightness when performing color difference
+	/// and should be in the range `0.0..=1.0`.
+	#[cfg(not(feature = "threads"))]
+	#[must_use]
+	pub fn from_srgb(pixels: &[Srgb<u8>], lightness_weight: f32) -> Self {
+		// Converting from Srgb to Oklab is expensive, so let's group identical pixels.
+		// This will also have the effect of speeding up k-means, since there will be less data points.
+
+		/// The format used to convert an Srgb pixel into a u32 for fast hashing/deduplication
+		type Packed = palette::rgb::channels::Rgba;
+
+		// Packed Srgb -> count
+		let mut counts: HashMap<u32, u32> = HashMap::new();
 
 		// Convert to an Oklab color, merging entries as necessary
 		for srgb in pixels {
-			let key = srgb.into_u32::<palette::rgb::channels::Rgba>();
-			let index = *memo.entry(key).or_insert_with(|| {
-				let color = Oklab::from_color(srgb.into_format());
-
-				// data.len() < u32::MAX because there are only (2^8)^3 < u32::MAX possible sRGB colors
-				#[allow(clippy::cast_possible_truncation)]
-				let index = data.colors.len() as u32;
-
-				data.colors.push(color);
-				data.counts.push(0);
-				index
-			});
-
-			data.counts[index as usize] += 1;
+			let key = srgb.into_u32::<Packed>();
+			*counts.entry(key).or_insert(0) += 1;
 		}
 
-		data.set_lightness_weight(lightness_weight);
+		let (colors, counts) = counts
+			.into_iter()
+			.map(|(key, count)| (Oklab::from_color(Srgb::from_u32::<Packed>(key).into_format()), count))
+			.unzip();
 
+		let mut data = OklabCounts { colors, counts, lightness_weight: 1.0 };
+		data.set_lightness_weight(lightness_weight);
 		data
 	}
 

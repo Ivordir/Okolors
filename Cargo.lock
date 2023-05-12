@@ -671,6 +671,7 @@ dependencies = [
  "palette",
  "rand",
  "rand_chacha",
+ "rayon",
 ]
 
 [[package]]
