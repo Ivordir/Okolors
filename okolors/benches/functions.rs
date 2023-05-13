@@ -83,7 +83,7 @@ fn kmeans(c: &mut Criterion) {
 						black_box(1),
 						black_box(k),
 						black_box(convergence),
-						black_box(64),
+						black_box(1024),
 						black_box(0),
 					)
 				});

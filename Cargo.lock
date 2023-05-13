@@ -690,6 +690,7 @@ dependencies = [
  "criterion",
  "hashbrown 0.13.2",
  "image",
+ "itertools",
  "palette",
  "rand",
  "rand_chacha",
