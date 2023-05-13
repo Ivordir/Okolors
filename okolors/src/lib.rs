@@ -272,8 +272,6 @@ impl OklabCounts {
 
 		// Packed Srgb -> count
 		let mut counts: HashMap<u32, u32> = HashMap::new();
-
-		// Convert to an Oklab color, merging entries as necessary
 		for srgb in pixels {
 			let key = srgb.into_u32::<Packed>();
 			*counts.entry(key).or_insert(0) += 1;
