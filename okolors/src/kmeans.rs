@@ -267,9 +267,11 @@ fn update_assignments<D: ColorDifference>(
 	use rayon::prelude::*;
 
 	let k = centers.centroid.len();
+	let num_points = oklab.colors().len();
 	let deltas = points
 		.assignment
 		.par_iter_mut()
+		.with_min_len(num_points / rayon::current_num_threads())
 		.zip(&oklab.colors)
 		.zip(&oklab.counts)
 		.fold_with(
