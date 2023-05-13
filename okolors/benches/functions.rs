@@ -5,7 +5,7 @@ use criterion::{
 use okolors::OklabCounts;
 use std::time::Duration;
 
-fn load_images() -> Vec<(String, image::DynamicImage)> {
+fn load_images() -> Vec<(String, image::RgbImage)> {
 	std::fs::read_dir("../img")
 		.expect("read img directory")
 		.collect::<Result<Vec<_>, _>>()
@@ -17,7 +17,7 @@ fn load_images() -> Vec<(String, image::DynamicImage)> {
 				Some(image::open(&path).map(|image| {
 					(
 						path.file_name().unwrap().to_owned().into_string().unwrap(),
-						image.thumbnail(1920, 1080),
+						image.into_rgb8(),
 					)
 				}))
 			} else {
@@ -42,26 +42,36 @@ fn preprocessing(c: &mut Criterion) {
 	let mut group = create_group(c, "preprocessing");
 
 	for (path, image) in load_images() {
-		let image = image.to_rgb8();
-		group.bench_with_input(BenchmarkId::from_parameter(path), &image, |b, image| {
-			b.iter(|| OklabCounts::from_rgbimage(image, 1.0));
-		});
+		for (width, height) in [(480, 270), (1920, 1080)] {
+			let image = image::imageops::thumbnail(&image, width, height);
+			group.bench_with_input(
+				BenchmarkId::new(&path, format!("{width}x{height}")),
+				&image,
+				|b, image| {
+					b.iter(|| OklabCounts::from_rgbimage(image, 1.0));
+				},
+			);
+		}
 	}
 }
 
 fn kmeans(c: &mut Criterion) {
 	let mut group = create_group(c, "kmeans");
 
-	let images = load_images();
-	let counts = images
-		.iter()
-		.map(|(path, image)| (path, OklabCounts::from_image(image, 1.0)))
+	let counts = load_images()
+		.into_iter()
+		.map(|(path, image)| {
+			(
+				path,
+				OklabCounts::from_rgbimage(&image::imageops::thumbnail(&image, 480, 270), 1.0),
+			)
+		})
 		.collect::<Vec<_>>();
 
 	fn bench(
 		name: &str,
 		group: &mut BenchmarkGroup<WallTime>,
-		counts: &[(&String, OklabCounts)],
+		counts: &[(String, OklabCounts)],
 		k: u8,
 		convergence: f32,
 	) {
@@ -81,14 +91,12 @@ fn kmeans(c: &mut Criterion) {
 		}
 	}
 
-	group.measurement_time(Duration::from_secs(3));
-	bench("default", &mut group, &counts, 8, 0.05);
-
 	group.measurement_time(Duration::from_secs(2));
+	bench("default", &mut group, &counts, 8, 0.05);
 	bench("low k", &mut group, &counts, 4, 0.05);
 	bench("high convergence", &mut group, &counts, 8, 0.1);
 
-	group.measurement_time(Duration::from_secs(8));
+	group.measurement_time(Duration::from_secs(4));
 	bench("high k", &mut group, &counts, 32, 0.05);
 	bench("low convergence", &mut group, &counts, 8, 0.01);
 }

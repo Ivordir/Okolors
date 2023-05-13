@@ -12,7 +12,7 @@ keywords = ["palette", "theme", "color", "oklab", "kmeans"]
 categories = ["multimedia::images"]
 
 [[bench]]
-name = "images"
+name = "functions"
 harness = false
 
 [features]
