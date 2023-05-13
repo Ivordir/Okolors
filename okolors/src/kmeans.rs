@@ -162,7 +162,7 @@ fn kmeans_plus_plus<D: ColorDifference>(
 			Ok(sampler) => centroids.push(colors[sampler.sample(&mut rng)]),
 			Err(AllWeightsZero) => return, // all points exactly match a centroid
 			Err(InvalidWeight | NoItem | TooMany) => {
-				unreachable!("distances are >= 0 and colors.len() is in 1..=u32::MAX")
+				unreachable!("distances are >= 0 and colors.len() is in 1..=2.pow(24)")
 			},
 		}
 	}
@@ -335,7 +335,7 @@ fn update_assignments<D: ColorDifference>(
 			// Each center count is the sum of the counts of its points,
 			// so moving all points out of this center cannot give a negative value.
 			// Similarly, since the sum of the counts of all points is <= u32::MAX,
-			// then moving all point into this center cannot give a value > u32::MAX.
+			// then moving all points into this center cannot give a value > u32::MAX.
 			debug_assert!(u32::try_from(new_count).is_ok());
 			*count = new_count as u32;
 		}
@@ -436,8 +436,7 @@ fn run_trials<D: ColorDifference>(
 	convergence: f32,
 	seed: u64,
 ) -> KmeansResult {
-	let n = u32::try_from(oklab.colors.len()).expect("number of colors is within u32::MAX");
-	let mut state = KmeansState::new(k, n);
+	let mut state = KmeansState::new(k, oklab.num_colors());
 
 	(0..trials)
 		.map(|i| kmeans::<D>(oklab, &mut state, k, max_iter, convergence, seed ^ u64::from(i)))
@@ -597,7 +596,7 @@ mod tests {
 	fn initialize(k: u8) -> (OklabCounts, KmeansState, impl Rng) {
 		let data = test_data();
 		#[allow(clippy::cast_possible_truncation)]
-		let mut state = KmeansState::new(k, data.colors.len() as u32);
+		let mut state = KmeansState::new(k, data.num_colors());
 		let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(0);
 
 		kmeans_plus_plus::<EuclideanDistance>(
@@ -706,7 +705,7 @@ mod tests {
 
 	fn assert_result_eq<D: ColorDifference>(data: &OklabCounts, k: u8, expected: &KmeansResult) {
 		#[allow(clippy::cast_possible_truncation)]
-		let mut state = KmeansState::new(k, data.colors.len() as u32);
+		let mut state = KmeansState::new(k, data.num_colors());
 		let result = kmeans::<D>(data, &mut state, k, 64, 0.01, 0);
 
 		assert!((result.variance - expected.variance).abs() <= 1e-8);

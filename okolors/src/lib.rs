@@ -173,10 +173,12 @@ impl OklabCounts {
 		self.colors.iter().copied().zip(self.counts.iter().copied())
 	}
 
-	/// Get the number of unique colors
+	/// Get the number of unique colors which is less than or equal to `2.pow(24)`
 	#[must_use]
 	#[allow(clippy::cast_possible_truncation)]
 	pub fn num_colors(&self) -> u32 {
+		// Only 2^8^3 = 2^24 possible Srgb colors
+		debug_assert!(self.colors().len() <= usize::pow(2, 24));
 		self.colors.len() as u32
 	}
 
