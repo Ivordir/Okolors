@@ -18,9 +18,10 @@ harness = false
 [features]
 default = ["image"]
 image = ["dep:image"]
-threads = ["rayon"]
+threads = ["rayon", "hashbrown/rayon"]
 
 [dependencies]
+hashbrown = "0.13.2"
 image = { version = "0.24.6", optional = true, default_features = false }
 palette = { version = "0.7.1", default_features = false, features = ["std"] }
 rand = "0.8.5"

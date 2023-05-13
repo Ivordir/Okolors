@@ -127,9 +127,9 @@
 #![allow(clippy::enum_glob_use)]
 #![allow(clippy::unreadable_literal)]
 
+use hashbrown::HashMap;
 use image::{DynamicImage, RgbImage};
 use palette::{FromColor, Oklab, Srgb};
-use std::collections::HashMap;
 
 mod kmeans;
 pub use kmeans::KmeansResult;
@@ -220,14 +220,18 @@ impl OklabCounts {
 		// Converting from Srgb to Oklab is expensive, so let's group identical pixels.
 		// This will also have the effect of speeding up k-means, since there will be less data points.
 
-		/// The format used to convert an Srgb pixel into a u32 for fast hashing/deduplication
+		/// The format used to convert an Srgb pixel into a u32 for hashing
 		type Packed = palette::rgb::channels::Rgba;
 
+		// We use hashbrown::HashMap instead of std::collections::HashMap, since:
+		// - AHash is faster than SipHash (we do not need the DDoS protection)
+		// - the standard HashMap uses thead-local random state which causes non-deterministic output with rayon,
+		//   so we would have to sort the final colors/counts to restore determinism.
 		let mut thread_counts = pixels
 			.par_iter()
-			// setting min_len reduces the number of intermediate HashMaps (needed to be joined at the end, etc.)
+			// setting min_len reduces the number of intermediate HashMaps (needed to be merged at the end, etc.)
 			.with_min_len(pixels.len() / rayon::current_num_threads())
-			.fold_with(HashMap::new(), |mut counts, srgb| {
+			.fold(HashMap::new, |mut counts, srgb| {
 				let key = srgb.into_u32::<Packed>();
 				*counts.entry(key).or_insert(0) += 1_u32;
 				counts
@@ -242,12 +246,7 @@ impl OklabCounts {
 			}
 		}
 
-		// Rayon splits the pixel array in a non-deterministic manner (especially since we use current_num_threads()),
-		// so we sort the final data to make results deterministic again.
-		let mut temp_data = counts.into_iter().collect::<Vec<_>>();
-		temp_data.par_sort();
-
-		let (colors, counts) = temp_data
+		let (colors, counts) = counts
 			.into_par_iter()
 			.map(|(key, count)| (Oklab::from_color(Srgb::from_u32::<Packed>(key).into_format()), count))
 			.unzip();
@@ -267,7 +266,7 @@ impl OklabCounts {
 		// Converting from Srgb to Oklab is expensive, so let's group identical pixels.
 		// This will also have the effect of speeding up k-means, since there will be less data points.
 
-		/// The format used to convert an Srgb pixel into a u32 for fast hashing/deduplication
+		/// The format used to convert an Srgb pixel into a u32 for hashing
 		type Packed = palette::rgb::channels::Rgba;
 
 		// Packed Srgb -> count
