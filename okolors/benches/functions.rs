@@ -5,7 +5,7 @@ use criterion::{
 use okolors::OklabCounts;
 use std::time::Duration;
 
-fn load_images() -> Vec<(String, image::RgbImage)> {
+fn load_images() -> Vec<(String, image::DynamicImage)> {
 	std::fs::read_dir("../img")
 		.expect("read img directory")
 		.collect::<Result<Vec<_>, _>>()
@@ -14,12 +14,10 @@ fn load_images() -> Vec<(String, image::RgbImage)> {
 		.filter_map(|file| {
 			let path = file.path();
 			if path.extension().map_or(false, |ext| ext == "jpg") {
-				Some(image::open(&path).map(|image| {
-					(
-						path.file_name().unwrap().to_owned().into_string().unwrap(),
-						image.into_rgb8(),
-					)
-				}))
+				Some(
+					image::open(&path)
+						.map(|image| (path.file_name().unwrap().to_owned().into_string().unwrap(), image)),
+				)
 			} else {
 				None
 			}
@@ -42,6 +40,7 @@ fn preprocessing(c: &mut Criterion) {
 	let mut group = create_group(c, "preprocessing");
 
 	for (path, image) in load_images() {
+		let image = image.to_rgb8();
 		for (width, height) in [(480, 270), (1920, 1080)] {
 			let image = image::imageops::thumbnail(&image, width, height);
 			group.bench_with_input(
@@ -60,12 +59,7 @@ fn kmeans(c: &mut Criterion) {
 
 	let counts = load_images()
 		.into_iter()
-		.map(|(path, image)| {
-			(
-				path,
-				OklabCounts::from_rgbimage(&image::imageops::thumbnail(&image, 480, 270), 1.0),
-			)
-		})
+		.map(|(path, image)| (path, OklabCounts::from_image(&image.thumbnail(480, 270), 1.0)))
 		.collect::<Vec<_>>();
 
 	fn bench(
@@ -101,5 +95,27 @@ fn kmeans(c: &mut Criterion) {
 	bench("low convergence", &mut group, &counts, 8, 0.01);
 }
 
-criterion_group!(benches, preprocessing, kmeans);
+fn from_image(c: &mut Criterion) {
+	let mut group = create_group(c, "from_image");
+	group.measurement_time(Duration::from_secs(8));
+
+	let images = load_images();
+	for (path, image) in &images {
+		group.bench_with_input(BenchmarkId::from_parameter(path), image, |b, image| {
+			b.iter(|| {
+				okolors::from_image(
+					image,
+					black_box(1.0),
+					black_box(1),
+					black_box(8),
+					black_box(0.05),
+					black_box(1024),
+					black_box(0),
+				)
+			});
+		});
+	}
+}
+
+criterion_group!(benches, preprocessing, kmeans, from_image);
 criterion_main!(benches);

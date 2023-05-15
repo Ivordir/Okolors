@@ -94,12 +94,26 @@ It seems that two of the colors are quite similar. Let's reduce the number of co
 # Performance
 
 Despite using k-means which is more accurate but slower than something like median cut quantization,
-Okolors still seems to be decently fast. For example, for a 1920x1080 jpeg image on my hardware,
-Okolors takes about 100-200ms to complete using the default options.
-(33% to 50% or more of this time is simply loading the image from disk.)
-The plan is to reduce this time further by implementing SIMD, possibly when [portable-simd](https://github.com/rust-lang/rust/issues/86656) becomes stable.
+Okolors still seems to be pretty fast. Excluding the time to read and decode the image from disk,
+here is Okolors's running time for each test image as reported by [criteron](https://github.com/bheisler/criterion.rs). The parameters used were `k = 8`, `convergence_threshold = 0.05`, `trials = 1`, and `max_iter = 1024`. The benchmarks were run on a 4-core CPU, so YMMV on different hardware (especially with more or less cores).
 
-(Benchmarks will hopefully come soon as well!)
+| Image                    | Dimensions | Time (ms) |
+|:------------------------ |:----------:| ---------:|
+| Akihabara.jpg            | 5663x3669  |       376 |
+| Bryggen.jpg              | 5508x3098  |        89 |
+| Cesky Krumlov.jpg        | 4608x3456  |       177 |
+| Hokkaido.jpg             | 6000x4000  |       186 |
+| Jewel Changi.jpg         | 6000x4000  |       128 |
+| Lake Atitlan.jpg         | 5112x3408  |       374 |
+| Lake Mendota.jpg         | 3839x5758  |       124 |
+| Louvre.jpg               | 6056x4000  |       172 |
+| Sydney Sunset.jpg        | 2880x1508  |        22 |
+| Termas Geometricas.jpg   | 5472x3648  |       171 |
+| Yellow Crane Tower.jpg   | 3785x2839  |       121 |
+| Yosemite Tunnel View.jpg | 5580x3720  |       176 |
+
+The above times could be reduced by properly leveraging SIMD,
+possibly once [portable-simd](https://github.com/rust-lang/rust/issues/86656) becomes stable.
 
 # References
 
