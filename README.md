@@ -9,29 +9,15 @@ By using a proper color space for color difference and a more accurate clusterin
 this helps to ensure that the generated palette is truly representative of the input image.
 
 One of the main intended use cases for Okolors is to generate colors for a theme based off a wallpaper.
-In line with this goal, Okolors also supports printing the final average colors in multiple Okhsl lightness levels.
+In line with this goal, the Okolors binary also supports printing the final average colors in multiple Okhsl lightness levels.
 For example, you can specify a low lightness level for background colors
 and a high lightness for foreground text in order to achieve a certain contrast ratio.
 The [Okhsl](https://bottosson.github.io/posts/colorpicker/) color space is ideal for this,
 because as the lightness is changed, Okhsl preserves the hue and saturation of the color
-(better than other color spaces like HSL). You can see some of the [examples](#examples) below.
+(better than other color spaces like HSL).
 
-## Notes
-
-Okolors supports jpeg, png, gif, and qoi images by default.
-
-WebP support is not enabled by default, as it seems that the `image` crate still has lingering bugs for WebP in certain cases:
-[1](https://github.com/image-rs/image/issues/1873),
-[2](https://github.com/image-rs/image/issues/1872),
-[3](https://github.com/image-rs/image/issues/1712),
-[4](https://github.com/image-rs/image/issues/1647).
-Panics and bugs resulting from this should be directed upstream.
-
-Similarly, due an [issue](https://github.com/image-rs/image/issues/1647) with AVIF support in the `image` crate,
-the avif feature for Okolors is not enabled by default and instead uses the `libavif-image` crate.
-Compiling with this feature requires cmake and nasm on the system.
-
-Other image formats not enabled by default include bmp and tiff.
+The Okolors binary supports jpeg, png, gif, and qoi images by default.
+See the [features](#features) section for more info.
 
 # Examples
 
@@ -72,30 +58,35 @@ Let's get these colors in additional lightness levels using `-l`.
 ![](docs/swatch3.svg)
 
 If we're providing our own lightness levels, maybe we want to cluster the colors by hue and saturation only.
-Let's set the lightness weight to `0` using `-w`.
+Let's set the lightness weight to `0.01` using `-w`.
 
 ```bash
-> okolors 'img/Jewel Changi.jpg' -w 0 -l 10,30,50,70 -n 3 -e 0.01 -o swatch
+> okolors 'img/Jewel Changi.jpg' -w 0.01 -l 10,30,50,70 -n 3 -e 0.01 -o swatch
 ```
 
 ![](docs/swatch4.svg)
 
-That ended up bringing out an additional pinkish color but also merged white and black into a dark gray.
+That ended up bringing out an additional pinkish color but also merged white and black into a gray.
 So, use this at your own discretion!
 
-It seems that two of the colors are quite similar. Let's reduce the number of colors, `k`, by 1.
+If some of the colors still seem quite similar, then you can reduce/set the number of colors through `-k`.
 
 ```bash
-> okolors 'img/Jewel Changi.jpg' -k 7 -w 0 -l 10,30,50,70 -n 3 -e 0.01 -o swatch
+> okolors 'img/Jewel Changi.jpg' -k 7 -w 0.01 -l 10,30,50,70 -n 3 -e 0.01 -o swatch
 ```
 
 ![](docs/swatch5.svg)
+
+To see all the other command line options, pass `-h` for a summary or `--help` for detailed explanations.
+Note that the CLI flags translate one-to-one with the library arguments, if there is an equivalent.
 
 # Performance
 
 Despite using k-means which is more accurate but slower than something like median cut quantization,
 Okolors still seems to be pretty fast. Excluding the time to read and decode the image from disk,
-here is Okolors's running time for each test image as reported by [criteron](https://github.com/bheisler/criterion.rs). The parameters used were `k = 8`, `convergence_threshold = 0.05`, `trials = 1`, and `max_iter = 1024`. The benchmarks were run on a 4-core CPU, so YMMV on different hardware (especially with more or less cores).
+below are Okolors's running times for each image as reported by [criteron](https://github.com/bheisler/criterion.rs).
+The parameters used were `k = 8`, `convergence_threshold = 0.05`, `trials = 1`, `max_iter = 1024`, and `lightness_weight = 1.0`.
+The benchmarks were run on a 4-core CPU, so YMMV on different hardware (especially with more or less cores).
 
 | Image                    | Dimensions | Time (ms) |
 |:------------------------ |:----------:| ---------:|
@@ -112,8 +103,38 @@ here is Okolors's running time for each test image as reported by [criteron](htt
 | Yellow Crane Tower.jpg   | 3785x2839  |       121 |
 | Yosemite Tunnel View.jpg | 5580x3720  |       176 |
 
+Note that these are high resolution images, so the running time can be much faster for lower resolution images.
+The binary also has a CLI flag to create a thumbnail for images over a certain size.
+
 The above times could be reduced by properly leveraging SIMD,
 possibly once [portable-simd](https://github.com/rust-lang/rust/issues/86656) becomes stable.
+
+# Features
+
+## Library
+
+- `threads`: enabled by default and toggles parallelism via [rayon](https://github.com/rayon-rs/rayon).
+
+## Binary
+
+- `threads`: enabled by default and toggles the corresponding library feature.
+
+- `jpeg`, `png`, `gif`, and `qoi`: support for these image formats is enabled by default.
+
+- `jpeg_rayon`: enabled by default, allows multiple threads for decoding jpeg images.
+
+- `webp`: WebP support is not enabled by default, as it seems that the `image` crate still has lingering bugs for WebP in certain cases:
+[1](https://github.com/image-rs/image/issues/1873),
+[2](https://github.com/image-rs/image/issues/1872),
+[3](https://github.com/image-rs/image/issues/1712),
+[4](https://github.com/image-rs/image/issues/1647).
+Panics and bugs resulting from this should be directed upstream.
+
+- `avif`: similarly, due an [issue](https://github.com/image-rs/image/issues/1647) with AVIF support in the `image` crate,
+this feature is not enabled by default and instead uses the `libavif-image` crate.
+Compiling with this feature requires cmake and nasm on the system.
+
+- `bmp` and `tiff`: support for these image formats is not enabled by default.
 
 # References
 
