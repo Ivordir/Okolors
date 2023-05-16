@@ -10,6 +10,7 @@ license = "MIT"
 readme = "../README.md"
 keywords = ["palette", "theme", "color", "oklab", "kmeans"]
 categories = ["command-line-utilities", "multimedia::images"]
+publish = false # Publish binary releases on Github
 
 [[bin]]
 name = "okolors"
@@ -31,7 +32,7 @@ tiff = ["image/tiff"]
 time = []
 
 [dependencies]
-okolors = { path = "../okolors" }
+okolors = { path = "../okolors", default_features = false }
 image = { version = "0.24.6", default_features = false }
 palette = { version = "0.7.1", default_features = false, features = ["std"] }
 clap = { version = "4.0.18", features = ["derive"] }

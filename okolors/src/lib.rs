@@ -292,7 +292,6 @@ impl OklabCounts {
 	///
 	/// `lightness_weight` is used to scale down each color's lightness when performing color difference
 	/// and should be in the range `0.0..=1.0`.
-	#[cfg(feature = "image")]
 	#[must_use]
 	pub fn from_rgbimage(image: &RgbImage, lightness_weight: f32) -> Self {
 		Self::from_srgb(palette::cast::from_component_slice(image.as_raw()), lightness_weight)
@@ -302,7 +301,6 @@ impl OklabCounts {
 	///
 	/// `lightness_weight` is used to scale down each color's lightness when performing color difference
 	/// and should be in the range `0.0..=1.0`.
-	#[cfg(feature = "image")]
 	#[must_use]
 	pub fn from_image(image: &DynamicImage, lightness_weight: f32) -> Self {
 		Self::from_rgbimage(&image.to_rgb8(), lightness_weight)
@@ -335,7 +333,6 @@ pub fn from_srgb(
 /// Runs k-means on the provided [`RgbImage`]. The image is assumed to be in the `sRGB` color space.
 ///
 /// See the crate documentation for examples and information on each argument.
-#[cfg(feature = "image")]
 #[must_use]
 pub fn from_rgbimage(
 	image: &RgbImage,
@@ -359,7 +356,6 @@ pub fn from_rgbimage(
 /// Runs k-means on the provided image. The image is assumed to be in the `sRGB` color space.
 ///
 /// See the crate documentation for examples and information on each argument.
-#[cfg(feature = "image")]
 #[must_use]
 pub fn from_image(
 	image: &DynamicImage,
