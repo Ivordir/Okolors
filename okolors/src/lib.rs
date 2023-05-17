@@ -1,5 +1,14 @@
 //! Perform k-means clustering in the Oklab color space.
 //!
+//! # Overview
+//!
+//! Okolors takes an image in the `sRGB` color space or a slice of [`Srgb`] colors and returns `k` average [`Oklab`] colors.
+//!
+//! See the [parameters](#parameters) section for information and recommended values for each parameter.
+//!
+//! For visual examples and more information (e.g., features, performance, or the Okolors binary)
+//! see the [README](https://github.com/Ivordir/Okolors).
+//!
 //! # Examples
 //!
 //! ## Read an image file and get 5 average colors.
@@ -9,7 +18,7 @@
 //! let result = okolors::from_image(&img, 0.325, 1, 5, 0.05, 64, 0);
 //! ```
 //!
-//! ## Run k-means multiple times with different parameters.
+//! ## Run k-means multiple times with different arguments.
 //!
 //! ```no_run
 //! let img = image::open("some image").unwrap();
@@ -33,14 +42,19 @@
 //! let resultB = okolors::from_oklab_counts(&oklab, 1, 5, 0.05, 64, 0);
 //! ```
 //!
-//! # Arguments
+//! # Parameters
 //!
-//! Here are explanations of the various arguments that are shared between
-//! [`okolors::from_image`], [`okolors::from_srgb`], and [`okolors::from_oklab_counts`].
+//! Here are explanations of the various parameters that are shared between
+//! [`from_image`], [`from_rgbimage`], [`from_srgb`], and [`from_oklab_counts`].
 //!
-//! The [README](https://github.com/Ivordir/Okolors) contains some visual examples of the effects of the arguments below.
+//! In short, the `trials`, `convergence_threshold`, and `max_iter` parameters
+//! control the color accuracy at the expense of running time.
+//! `k` indicates the number of colors to return,
+//! and `lightness_weight` is a subjective parameter that affects how the colors are clustered.
 //!
-//! Note that if `trials` = 0, `k` = 0, or an empty slice of Srgb colors is provided,
+//! The [README](https://github.com/Ivordir/Okolors) contains some visual examples of the effects of the parameters below.
+//!
+//! Note that if `trials = 0`, `k = 0`, or an empty slice of Srgb colors is provided,
 //! then the [`KmeansResult`] will have no centroids and a variance of `0.0`.
 //!
 //! ## Lightness Weight
@@ -60,7 +74,7 @@
 //!
 //! This is the number of times to run k-means, taking the trial with the lowest variance.
 //!
-//! 1 to 4 trials is recommended, possibly up to 8 if you want more accuracy.
+//! 1 to 3 or 1 to 5 trials is recommended, depending on how much you value accuracy.
 //!
 //! k-means is an approximation algorithm that can get stuck in a local minimum.
 //! So, there is no guarantee that a single run may give a "good enough" result.
@@ -72,27 +86,27 @@
 //!
 //! This is the (maximum) number of average colors to find.
 //!
-//! 4 to 16 is most likely the range you want.
+//! 4 to 12 is most likely the range you want.
 //!
 //! The ideal number of clusters is hard to know in advance, if there even is an "ideal" number.
 //! Lower k values give faster runtime but also typically lower color accuracy.
 //! Higher k values provide higher accuracy, but can potentially give more colors than you need/want.
-//! The [`KmeansResult`] will provide the number of pixels in each color/centroid,
-//! so this can be used to filter out colors that make less than a certain percentage of the image.
+//! The [`KmeansResult`] will provide the number of pixels in each centroid,
+//! so this can be used to filter out centroids that make less than a certain percentage of the image.
 //!
 //! ## Convergence Threshold
 //!
-//! After a certain point, the centroids (average colors) change so little that there is no longer a visual, percievable difference.
+//! After a certain point, the centroids change so little that there is no longer a visual, percievable difference.
 //! This is the cutoff value used to determine whether any change is significant.
 //!
 //! 0.01 to 0.1 is the recommended range, with lower values indicating higher accuracy.
 //!
-//! A value of `0.1` is very fast (often only a few iterations are needed for regular sized images),
+//! A value of `0.1` is very fast (often only a few iterations are needed),
 //! and this should be enough to get a decent looking palette.
 //!
 //! A value of `0.01` is the lowest sensible value for maximum accuracy.
 //! Convergence thresholds should probably be not too far lower than this,
-//! as any iterations after this either do not or barely effect the final colors once converted to Srgb.
+//! as any iterations after this either do not or barely effect the final colors once converted to [`Srgb`].
 //! I.e., don't use `0.0` as the convergence threshold,
 //! as that may require many more iterations and would just be wasting time.
 //!
@@ -100,7 +114,7 @@
 //!
 //! This is the maximum number of iterations allowed for each k-means trial.
 //!
-//! 16 to 64 iterations is a decent range to use.
+//! Use 16, 64, 256, or more iterations depending on k and the convergence threshold.
 //!
 //! Ideally, k-means should stop due to the convergence threshold,
 //! so you want to choose a high enough maximum iterations that will prevent k-means from stopping early.
@@ -309,7 +323,7 @@ impl OklabCounts {
 
 /// Runs k-means on the provided slice of [`Srgb`] colors.
 ///
-/// See the crate documentation for examples and information on each argument.
+/// See the crate documentation for examples and information on each parameter.
 #[must_use]
 pub fn from_srgb(
 	pixels: &[Srgb<u8>],
@@ -332,7 +346,7 @@ pub fn from_srgb(
 
 /// Runs k-means on the provided [`RgbImage`]. The image is assumed to be in the `sRGB` color space.
 ///
-/// See the crate documentation for examples and information on each argument.
+/// See the crate documentation for examples and information on each parameter.
 #[must_use]
 pub fn from_rgbimage(
 	image: &RgbImage,
@@ -355,7 +369,7 @@ pub fn from_rgbimage(
 
 /// Runs k-means on the provided image. The image is assumed to be in the `sRGB` color space.
 ///
-/// See the crate documentation for examples and information on each argument.
+/// See the crate documentation for examples and information on each parameter.
 #[must_use]
 pub fn from_image(
 	image: &DynamicImage,
@@ -383,7 +397,7 @@ pub fn from_image(
 /// This function allows you to reuse the [`OklabCounts`],
 /// whereas [`from_image`], [`from_rgbimage`], and [`from_srgb`] must recompute [`OklabCounts`] every time.
 ///
-/// See the crate documentation for examples and information on each argument.
+/// See the crate documentation for examples and information on each parameter.
 #[must_use]
 pub fn from_oklab_counts(
 	oklab_counts: &OklabCounts,

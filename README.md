@@ -78,7 +78,7 @@ If some of the colors still seem quite similar, then you can reduce/set the numb
 ![](docs/swatch5.svg)
 
 To see all the other command line options, pass `-h` for a summary or `--help` for detailed explanations.
-Note that the CLI flags translate one-to-one with the library arguments, if there is an equivalent.
+Note that the CLI flags translate one-to-one with the library parameters, if there is an equivalent.
 
 # Performance
 
