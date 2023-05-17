@@ -3,3 +3,6 @@ build-time:
 
 bench-func func:
   cargo bench --bench functions -- {{func}}
+
+experiment-param param:
+  cargo run --release --example parameters -- {{param}}
