@@ -138,7 +138,7 @@ impl KmeansResult {
 /// Choose the starting centroids using the k-means++ algorithm
 fn kmeans_plus_plus<D: ColorDifference>(
 	k: u8,
-	mut rng: &mut impl Rng,
+	rng: &mut impl Rng,
 	colors: &[Oklab],
 	centroids: &mut Vec<Oklab>,
 	weights: &mut [f32],
@@ -159,7 +159,7 @@ fn kmeans_plus_plus<D: ColorDifference>(
 		}
 
 		match WeightedIndex::new(weights.iter().copied()) {
-			Ok(sampler) => centroids.push(colors[sampler.sample(&mut rng)]),
+			Ok(sampler) => centroids.push(colors[sampler.sample(rng)]),
 			Err(AllWeightsZero) => return, // all points exactly match a centroid
 			Err(InvalidWeight | NoItem | TooMany) => {
 				unreachable!("distances are >= 0 and colors.len() is in 1..=2.pow(24)")
@@ -469,8 +469,6 @@ pub fn run(
 #[cfg(test)]
 mod tests {
 	use super::*;
-
-	// TODO: use relative error instead of absolute for floating point comparison
 
 	fn test_colors() -> Vec<Oklab> {
 		vec![
