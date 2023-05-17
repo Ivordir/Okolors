@@ -14,32 +14,41 @@
 //! ## Read an image file and get 5 average colors.
 //!
 //! ```no_run
-//! let img = image::open("some image").unwrap();
+//! # fn main() -> Result<(), image::ImageError> {
+//! let img = image::open("some image")?;
 //! let result = okolors::from_image(&img, 0.325, 1, 5, 0.05, 64, 0);
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Run k-means multiple times with different arguments.
 //!
 //! ```no_run
-//! let img = image::open("some image").unwrap();
+//! # fn main() -> Result<(), image::ImageError> {
+//! let img = image::open("some image")?;
 //! let oklab = okolors::OklabCounts::from_image(&img, 0.325);
 //!
 //! let avg5 = okolors::from_oklab_counts(&oklab, 1, 5, 0.05, 64, 0);
 //! let avg8 = okolors::from_oklab_counts(&oklab, 1, 8, 0.05, 64, 0);
 //!
 //! let result = if avg5.variance < avg8.variance { avg5 } else { avg8 };
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Run with different lightness weights.
 //!
 //! ```no_run
-//! let img = image::open("some image").unwrap();
+//! # fn main() -> Result<(), image::ImageError> {
+//! let img = image::open("some image")?;
 //! let mut oklab = okolors::OklabCounts::from_image(&img, 0.325);
 //!
 //! let resultA = okolors::from_oklab_counts(&oklab, 1, 5, 0.05, 64, 0);
 //!
 //! oklab.set_lightness_weight(1.0);
 //! let resultB = okolors::from_oklab_counts(&oklab, 1, 5, 0.05, 64, 0);
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! # Parameters
