@@ -64,6 +64,9 @@ jobs:
       - name: Test (no threading)
         run: cargo test --no-default-features --features default_formats
 
+      - name: Build docs
+        run: cargo doc --lib --no-deps
+
   build_test_avif:
     name: Build and test avif feature
     runs-on: ubuntu-latest
