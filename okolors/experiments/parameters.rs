@@ -42,7 +42,7 @@ fn centroids_difference(prev: &KmeansResult, result: &KmeansResult) -> f32 {
 	while !prev_centroids.is_empty() {
 		let mut min_i = 0;
 		let mut min_j = 0;
-		let mut min_dist = f32::MAX;
+		let mut min_dist = f32::INFINITY;
 
 		for (i, prev) in prev_centroids.iter().enumerate() {
 			for (j, curr) in curr_centroids.iter().enumerate() {

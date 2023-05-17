@@ -47,14 +47,14 @@ impl PointData {
 		let n = n as usize;
 		Self {
 			assignment: vec![0; n],
-			weight: vec![f32::MAX; n],
+			weight: vec![f32::INFINITY; n],
 		}
 	}
 
 	/// Reset data for the next k-means trial
 	fn reset(&mut self) {
 		// assignments are corrected every iteration
-		self.weight.fill(f32::MAX);
+		self.weight.fill(f32::INFINITY);
 	}
 }
 
@@ -387,16 +387,12 @@ fn kmeans<D: ColorDifference>(
 	compute_initial_sums(oklab, centers, &points.assignment);
 
 	let mut iterations = 0;
-	loop {
+	let mut total_delta = f32::INFINITY;
+	while iterations < max_iter && total_delta > convergence {
 		update_distances::<D>(&centers.centroid, distances);
 		update_assignments::<D>(oklab, centers, distances, points);
-		let total_delta = update_centroids::<D>(&mut rng, centers);
-
+		total_delta = update_centroids::<D>(&mut rng, centers);
 		iterations += 1;
-
-		if iterations >= max_iter || total_delta <= convergence {
-			break;
-		}
 	}
 
 	let variance = oklab
