@@ -288,11 +288,13 @@ mod tests {
 				let height = height - dh;
 				let max_pixels = width * height;
 				let thumb = get_thumbnail(img.clone(), max_pixels, false);
+				#[allow(clippy::cast_possible_truncation)]
+				let pixels = thumb.pixels().len() as u32;
 
 				if dw == 0 && dh == 0 {
-					assert_eq!(thumb.pixels().len(), max_pixels as usize);
+					assert_eq!(pixels, max_pixels);
 				} else {
-					assert!(thumb.pixels().len() <= max_pixels as usize);
+					assert!((width - 1) * (height - 1) < pixels && pixels <= max_pixels);
 				}
 			}
 		}
