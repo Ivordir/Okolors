@@ -8,6 +8,7 @@ homepage = "https://github.com/Ivordir/okcolors"
 repository = "https://github.com/Ivordir/okcolors"
 license = "MIT"
 readme = "../README.md"
+include = ["src"]
 keywords = ["palette", "theme", "color", "oklab", "kmeans"]
 categories = ["multimedia::images"]
 

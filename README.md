@@ -1,6 +1,4 @@
-# Okolors
-
-Still a WIP, but...
+# Okolors [![](https://badgen.net/crates/v/okolors)](https://crates.io/crates/okolors)
 
 Okolors takes an image and produces a color palette consisting of the image's average colors.
 It does this by converting the image's pixels to the [Oklab](https://bottosson.github.io/posts/oklab/) color space
@@ -18,6 +16,9 @@ because as the lightness is changed, Okhsl preserves the hue and saturation of t
 
 The Okolors binary supports jpeg, png, gif, and qoi images by default.
 See the [features](#features) section for more info.
+
+For more specific information regarding the `okolors` library
+see the [docs.rs](https://docs.rs/okolors/latest/okolors/) page as well.
 
 # Examples
 
