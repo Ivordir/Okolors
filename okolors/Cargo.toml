@@ -15,6 +15,7 @@ categories = ["multimedia::images"]
 [[bench]]
 name = "functions"
 harness = false
+path = "benches/functions.rs"
 
 [[example]]
 name = "parameters"
