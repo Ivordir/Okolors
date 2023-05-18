@@ -66,6 +66,8 @@ jobs:
 
       - name: Build docs
         run: cargo doc --lib --no-deps
+        env:
+          RUSTDOCFLAGS: '--deny warnings'
 
   build_test_avif:
     name: Build and test avif feature
