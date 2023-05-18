@@ -1,0 +1,25 @@
+name: Binary Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build_upload:
+    name: Build and upload binary
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: okolors
+          archive: $bin-$tag-$target
+          include: LICENSE
+          token: ${{ secrets.GITHUB_TOKEN }}
