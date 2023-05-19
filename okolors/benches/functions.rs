@@ -41,13 +41,13 @@ fn preprocessing(c: &mut Criterion) {
 
 	for (path, image) in load_images() {
 		let image = image.to_rgb8();
-		for (width, height) in [(480, 270), (1920, 1080)] {
+		for (width, height) in [(480, 270), (1920, 1080), image.dimensions()] {
 			let image = image::imageops::thumbnail(&image, width, height);
 			group.bench_with_input(
 				BenchmarkId::new(&path, format!("{width}x{height}")),
 				&image,
 				|b, image| {
-					b.iter(|| OklabCounts::from_rgbimage(image, 1.0));
+					b.iter(|| OklabCounts::from_rgbimage(image, 0.325));
 				},
 			);
 		}
@@ -59,7 +59,7 @@ fn kmeans(c: &mut Criterion) {
 
 	let counts = load_images()
 		.into_iter()
-		.map(|(path, image)| (path, OklabCounts::from_image(&image.thumbnail(480, 270), 1.0)))
+		.map(|(path, image)| (path, OklabCounts::from_image(&image, 0.325)))
 		.collect::<Vec<_>>();
 
 	fn bench(
@@ -105,7 +105,7 @@ fn from_image(c: &mut Criterion) {
 			b.iter(|| {
 				okolors::from_image(
 					image,
-					black_box(1.0),
+					black_box(0.325),
 					black_box(1),
 					black_box(8),
 					black_box(0.05),
