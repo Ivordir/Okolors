@@ -170,7 +170,7 @@ fn kmeans_plus_plus<D: ColorDifference>(
 
 /// Initializes the center sums and counts based off the initial centroids
 fn compute_initial_sums(oklab: &OklabCounts, centers: &mut CenterData, assignment: &[u8]) {
-	for ((color, n), &center) in oklab.iter().zip(assignment) {
+	for ((color, n), &center) in oklab.pairs().zip(assignment) {
 		let i = usize::from(center);
 		let nf = f64::from(n);
 		let sum = &mut centers.sum[i];
@@ -211,7 +211,7 @@ fn update_assignments<D: ColorDifference>(
 	points: &mut PointData,
 ) {
 	let k = centers.centroid.len();
-	for ((color, n), center) in oklab.iter().zip(&mut points.assignment) {
+	for ((color, n), center) in oklab.pairs().zip(&mut points.assignment) {
 		let ci = usize::from(*center);
 		let dist = D::squared_distance(color, centers.centroid[ci]);
 
@@ -396,7 +396,7 @@ fn kmeans<D: ColorDifference>(
 	}
 
 	let variance = oklab
-		.iter()
+		.pairs()
 		.zip(&points.assignment)
 		.map(|((color, n), &center)| {
 			f64::from(n) * f64::from(D::squared_distance(color, centers.centroid[usize::from(center)]))
@@ -630,7 +630,7 @@ mod tests {
 
 		let mut expected_sum = Oklab { l: 0.0, a: 0.0, b: 0.0 };
 		let mut expected_count = 0;
-		for (color, count) in data.iter() {
+		for (color, count) in data.pairs() {
 			expected_count += count;
 			let n = f64::from(count);
 			expected_sum.l += n * f64::from(color.l);
@@ -661,7 +661,7 @@ mod tests {
 
 		update_assignments::<EuclideanDistance>(&data, &mut state.centers, &state.distances, &mut state.points);
 
-		for ((color, count), &center) in data.iter().zip(&state.points.assignment) {
+		for ((color, count), &center) in data.pairs().zip(&state.points.assignment) {
 			let center = usize::from(center);
 			let n = f64::from(count);
 			let sum = &mut state.centers.sum[center];

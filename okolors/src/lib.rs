@@ -192,7 +192,7 @@ impl OklabCounts {
 	}
 
 	/// Returns an iterator over each `(Oklab, count: u32)` pair
-	pub fn iter(&self) -> impl Iterator<Item = (Oklab, u32)> + '_ {
+	pub fn pairs(&self) -> impl Iterator<Item = (Oklab, u32)> + '_ {
 		self.colors.iter().copied().zip(self.counts.iter().copied())
 	}
 
