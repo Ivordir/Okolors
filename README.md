@@ -16,6 +16,7 @@ because as the lightness is changed, Okhsl preserves the hue and saturation of t
 
 The Okolors binary supports jpeg, png, gif, and qoi images by default.
 See the [features](#features) section for more info.
+Precompiled binaries are available on [Github](https://github.com/Ivordir/Okolors/releases).
 
 For more specific information regarding the `okolors` library
 see the [docs.rs](https://docs.rs/okolors/latest/okolors/) page as well.
