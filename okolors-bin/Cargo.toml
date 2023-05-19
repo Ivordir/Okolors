@@ -18,8 +18,12 @@ path = "src/main.rs"
 
 [features]
 default = ["threads", "default_formats"]
-default_formats = ["jpeg", "jpeg_rayon", "png", "gif", "qoi"]
+
+# Parallelism via rayon
 threads = ["okolors/threads"]
+
+# Image formats
+default_formats = ["jpeg", "jpeg_rayon", "png", "gif", "qoi"]
 jpeg = ["image/jpeg"]
 jpeg_rayon = ["image/jpeg_rayon"]
 png = ["image/png"]
@@ -29,6 +33,8 @@ webp = ["image/webp"]
 avif = ["libavif-image"]
 bmp = ["image/bmp"]
 tiff = ["image/tiff"]
+
+# Print running time of each step
 time = []
 
 [dependencies]
