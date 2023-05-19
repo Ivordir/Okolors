@@ -431,7 +431,7 @@ mod tests {
 
 	fn test_colors() -> Vec<Srgb<u8>> {
 		let range = (0..u8::MAX).step_by(16);
-		let mut colors = Vec::new();
+		let mut colors = Vec::with_capacity(range.len().pow(3));
 
 		for r in range.clone() {
 			for g in range.clone() {

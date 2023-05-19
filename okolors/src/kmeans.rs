@@ -158,7 +158,7 @@ fn kmeans_plus_plus<D: ColorDifference>(
 			*weight = f32::min(*weight, D::squared_distance(color, centroid));
 		}
 
-		match WeightedIndex::new(weights.iter().copied()) {
+		match WeightedIndex::new(&*weights) {
 			Ok(sampler) => centroids.push(colors[sampler.sample(rng)]),
 			Err(AllWeightsZero) => return, // all points exactly match a centroid
 			Err(InvalidWeight | NoItem | TooMany) => {
