@@ -48,7 +48,7 @@ pub enum ColorizeOutput {
 /// Okolors also supports outputting the resulting colors in multiple Okhsl lightness levels.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Parser)]
-#[command(version)]
+#[command(name = "okolors", version)]
 pub struct Options {
 	/// The path to the input image
 	pub image: PathBuf,
