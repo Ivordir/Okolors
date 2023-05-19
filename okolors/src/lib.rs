@@ -7,7 +7,7 @@
 //! See the [parameters](#parameters) section for information and recommended values for each parameter.
 //!
 //! For visual examples and more information (e.g., features, performance, or the Okolors binary)
-//! see the [README](https://github.com/Ivordir/Okolors).
+//! see the [README](https://github.com/Ivordir/Okolors#readme).
 //!
 //! # Examples
 //!
@@ -61,7 +61,7 @@
 //! `k` indicates the number of colors to return,
 //! and `lightness_weight` is a subjective parameter that affects how the colors are clustered.
 //!
-//! The [README](https://github.com/Ivordir/Okolors) contains some visual examples of the effects of the parameters below.
+//! The [README](https://github.com/Ivordir/Okolors#readme) contains some visual examples of the effects of the parameters below.
 //!
 //! Note that if `trials = 0`, `k = 0`, or an empty slice of Srgb colors is provided,
 //! then the [`KmeansResult`] will have no centroids and a variance of `0.0`.
@@ -95,7 +95,7 @@
 //!
 //! This is the (maximum) number of average colors to find.
 //!
-//! 4 to 12 is most likely the range you want.
+//! 4 to 16 is likely the range you want for a palette.
 //!
 //! The ideal number of clusters is hard to know in advance, if there even is an "ideal" number.
 //! Lower k values give faster runtime but also typically lower color accuracy.
@@ -123,7 +123,7 @@
 //!
 //! This is the maximum number of iterations allowed for each k-means trial.
 //!
-//! Use 16, 64, 256, or more iterations depending on k and the convergence threshold.
+//! Use 16, 64, 256, or more iterations depending on k, the image size, and the convergence threshold.
 //!
 //! Ideally, k-means should stop due to the convergence threshold,
 //! so you want to choose a high enough maximum iterations that will prevent k-means from stopping early.
