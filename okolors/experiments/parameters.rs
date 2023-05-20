@@ -4,7 +4,7 @@ use itertools::iproduct;
 use okolors::{KmeansResult, OklabCounts};
 use palette::Oklab;
 
-fn load_images() -> Vec<image::RgbImage> {
+fn load_images() -> Vec<image::DynamicImage> {
 	std::fs::read_dir("img")
 		.expect("read img directory")
 		.collect::<Result<Vec<_>, _>>()
@@ -13,7 +13,7 @@ fn load_images() -> Vec<image::RgbImage> {
 		.filter_map(|file| {
 			let path = file.path();
 			if path.extension().map_or(false, |ext| ext == "jpg") {
-				Some(image::open(&path).map(|image| image.to_rgb8()))
+				Some(image::open(&path))
 			} else {
 				None
 			}
@@ -123,9 +123,9 @@ fn main() {
 		load_images()
 			.iter()
 			.flat_map(|image| {
-				[(480, 270), (1920, 1080)].into_iter().map(|(width, height)| {
-					OklabCounts::from_rgbimage(&image::imageops::thumbnail(image, width, height), 1.0)
-				})
+				[(480, 270), (1920, 1080)]
+					.into_iter()
+					.map(|(width, height)| OklabCounts::from_image(&image.thumbnail(width, height), u8::MAX))
 			})
 			.collect::<Vec<_>>()
 	};
@@ -143,9 +143,7 @@ fn main() {
 				"trials",
 				&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
 				iproduct!(&images(), k, convergence, seed),
-				|(counts, k, convergence, seed), trial| {
-					okolors::from_oklab_counts(counts, trial, k, convergence, 1024, seed)
-				},
+				|(counts, k, convergence, seed), trial| okolors::run(counts, trial, k, convergence, 1024, seed),
 			)
 		},
 		Some("convergence") => {
@@ -156,9 +154,7 @@ fn main() {
 				"convergence",
 				&[0.1, 0.05, 0.01, 0.005, 0.001],
 				iproduct!(&images(), trials, [4_u8, 6, 8, 10], seed),
-				|(counts, trial, k, seed), convergence| {
-					okolors::from_oklab_counts(counts, trial, k, convergence, 1024, seed)
-				},
+				|(counts, trial, k, seed), convergence| okolors::run(counts, trial, k, convergence, 1024, seed),
 			)
 		},
 		_ => eprintln!("Unexpected arg!"),

@@ -16,7 +16,7 @@
 #![allow(clippy::unreadable_literal)]
 
 use colored::Colorize;
-use image::RgbImage;
+use image::{DynamicImage, GenericImageView};
 use palette::{FromColor, Okhsl, Srgb};
 use std::{fmt, path::PathBuf, process::ExitCode};
 
@@ -101,34 +101,33 @@ fn get_print_palette(options: &Options) -> Result<(), ImageLoadError> {
 }
 
 /// Load an image from disk, generating an thumbnail if needed, and converting to [`Srgb<u8>`]
-fn get_pixels(options: &Options) -> Result<RgbImage, ImageLoadError> {
+fn get_pixels(options: &Options) -> Result<DynamicImage, ImageLoadError> {
 	time!(loading, load_image(&options.image))
 		.map(|img| time!(thumbnail, get_thumbnail(img, options.max_pixels, options.verbose)))
 }
 
-/// Load [`Srgb`] pixels from an image path
+/// Load the image at the given path
 #[cfg(feature = "avif")]
-fn load_image(path: &PathBuf) -> Result<RgbImage, ImageLoadError> {
-	let img = if path.extension().map_or(false, |ext| ext == "avif") {
+fn load_image(path: &PathBuf) -> Result<DynamicImage, ImageLoadError> {
+	if path.extension().map_or(false, |ext| ext == "avif") {
 		let buf = std::fs::read(path).map_err(ImageLoadError::AvifRead)?;
-		libavif_image::read(&buf).map_err(ImageLoadError::AvifDecode)?
+		libavif_image::read(&buf).map_err(ImageLoadError::AvifDecode)
 	} else {
-		image::open(path).map_err(ImageLoadError::ImageLoad)?
-	};
-
-	Ok(img.into_rgb8())
+		image::open(path).map_err(ImageLoadError::ImageLoad)
+	}
 }
 
-/// Load [`Srgb`] pixels from an image path
+/// Load the image at the given path
 #[cfg(not(feature = "avif"))]
-fn load_image(path: &PathBuf) -> Result<RgbImage, ImageLoadError> {
-	Ok(image::open(path).map_err(ImageLoadError::ImageLoad)?.into_rgb8())
+fn load_image(path: &PathBuf) -> Result<DynamicImage, ImageLoadError> {
+	image::open(path).map_err(ImageLoadError::ImageLoad)
 }
 
-/// Create a thumbnail with `max_pixels` pixels if the image has more than `max_pixels` pixels
-fn get_thumbnail(image: RgbImage, max_pixels: u32, verbose: bool) -> RgbImage {
+/// Create a thumbnail with at most `max_pixels` pixels if the image has more than `max_pixels` pixels
+fn get_thumbnail(image: DynamicImage, max_pixels: u32, verbose: bool) -> DynamicImage {
 	// The number of pixels should be < u64::MAX, since image dimensions are (u32, u32)
-	let pixels = image.pixels().len() as u64;
+	let (width, height) = image.dimensions();
+	let pixels = u64::from(width) * u64::from(height);
 	if pixels <= u64::from(max_pixels) {
 		image
 	} else {
@@ -136,7 +135,6 @@ fn get_thumbnail(image: RgbImage, max_pixels: u32, verbose: bool) -> RgbImage {
 		// I.e, only when pixels is in the order of quintillions
 		#[allow(clippy::cast_precision_loss)]
 		let scale = (f64::from(max_pixels) / pixels as f64).sqrt();
-		let (width, height) = image.dimensions();
 
 		// multiplying by a positive factor < 1
 		#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -146,15 +144,16 @@ fn get_thumbnail(image: RgbImage, max_pixels: u32, verbose: bool) -> RgbImage {
 			println!("Creating a thumbnail with dimensions {thumb_width}x{thumb_height}");
 		}
 
-		image::imageops::thumbnail(&image, thumb_width, thumb_height)
+		image.thumbnail(thumb_width, thumb_height)
 	}
 }
 
-/// Generate a palette from the given [`Srgb`] pixels and options
-fn get_palette(image: &RgbImage, options: &Options) -> Vec<Okhsl> {
+/// Generate a palette from the given image and options
+fn get_palette(image: &DynamicImage, options: &Options) -> Vec<Okhsl> {
 	let data = time!(
 		preprocessing,
-		okolors::OklabCounts::from_rgbimage(image, options.lightness_weight)
+		okolors::OklabCounts::from_image(image, options.alpha_threshold)
+			.with_lightness_weight(options.lightness_weight)
 	);
 
 	if options.verbose {
@@ -163,7 +162,7 @@ fn get_palette(image: &RgbImage, options: &Options) -> Vec<Okhsl> {
 
 	let kmeans = time!(
 		kmeans,
-		okolors::from_oklab_counts(
+		okolors::run(
 			&data,
 			options.trials,
 			options.k,
@@ -269,7 +268,7 @@ fn color_format_print(colors: &mut [Okhsl], options: &Options, delimiter: &str, 
 mod tests {
 	use super::*;
 
-	fn load_img(image: &str) -> RgbImage {
+	fn load_img(image: &str) -> DynamicImage {
 		load_image(&PathBuf::from(image)).expect("loaded image")
 	}
 
@@ -277,10 +276,10 @@ mod tests {
 	fn thumbnail_has_at_most_max_pixels() {
 		// Use scaled down image for reduced running time
 		let img = load_img("../img/formats/Jewel Changi.jpg");
-		let (width, height) = img.dimensions();
+		let (img_width, img_height) = img.dimensions();
 
-		assert!(width % 10 == 0 && height % 10 == 0);
-		let (width, height) = (width / 10, height / 10);
+		assert!(img_width % 10 == 0 && img_height % 10 == 0);
+		let (width, height) = (img_width / 10, img_height / 10);
 
 		for dw in 0..5 {
 			for dh in 0..5 {
@@ -288,13 +287,17 @@ mod tests {
 				let height = height - dh;
 				let max_pixels = width * height;
 				let thumb = get_thumbnail(img.clone(), max_pixels, false);
-				#[allow(clippy::cast_possible_truncation)]
-				let pixels = thumb.pixels().len() as u32;
+				let pixels = thumb.width() * thumb.height();
 
 				if dw == 0 && dh == 0 {
 					assert_eq!(pixels, max_pixels);
 				} else {
-					assert!((width - 1) * (height - 1) < pixels && pixels <= max_pixels);
+					let max_d = u32::max(dw, dh);
+					let min_pixels = (width - max_d) * (height - max_d);
+					assert!(
+						min_pixels <= pixels && pixels <= max_pixels,
+						"{img_width}x{img_height} => {width}x{height}: {min_pixels} <= {pixels} <= {max_pixels}"
+					);
 				}
 			}
 		}

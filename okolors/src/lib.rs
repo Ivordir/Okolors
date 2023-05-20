@@ -4,7 +4,7 @@
 //!
 //! Okolors takes an image in the `sRGB` color space or a slice of [`Srgb`] colors and returns `k` average [`Oklab`] colors.
 //!
-//! See the [parameters](#parameters) section for information and recommended values for each parameter.
+//! See the [parameters](#parameters) section for information about and recommended values for each of [`run`]'s parameters.
 //!
 //! For visual examples and more information (e.g., features, performance, or the Okolors binary)
 //! see the [README](https://github.com/Ivordir/Okolors#readme).
@@ -13,48 +13,48 @@
 //!
 //! ## Read an image file and get 5 average colors.
 //!
-//! ```no_run
-//! # fn main() -> Result<(), image::ImageError> {
-//! let img = image::open("some image")?;
-//! let result = okolors::from_image(&img, 0.325, 1, 5, 0.05, 64, 0);
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! ## Run k-means multiple times with different arguments.
+//! The example below first opens an image and then processes it into a [`OklabCounts`].
+//! This counts duplicate pixels and converts them to the [`Oklab`] color space.
+//! The resulting [`OklabCounts`] can be reused for multiple k-means runs with different arguments.
+//! In this example, only one k-means run is done with k = 5.
 //!
 //! ```no_run
 //! # fn main() -> Result<(), image::ImageError> {
 //! let img = image::open("some image")?;
-//! let oklab = okolors::OklabCounts::from_image(&img, 0.325);
+//! // For large images, you can create a thumbnail here to reduce the running time
+//! // use image::GenericImageView;
+//! // let img = img.thumbnail(width, height);
 //!
-//! let avg5 = okolors::from_oklab_counts(&oklab, 1, 5, 0.05, 64, 0);
-//! let avg8 = okolors::from_oklab_counts(&oklab, 1, 8, 0.05, 64, 0);
-//!
-//! let result = if avg5.variance < avg8.variance { avg5 } else { avg8 };
+//! let oklab = okolors::OklabCounts::from_image(&img, u8::MAX);
+//! let result = okolors::run(&oklab, 1, 5, 0.05, 64, 0);
+//! #
 //! # Ok(())
 //! # }
 //! ```
 //!
 //! ## Run with different lightness weights.
 //!
+//! This example reuses an [`OklabCounts`], changing its `lightness_weight` to get different [`KmeansResult`]s.
+//!
 //! ```no_run
 //! # fn main() -> Result<(), image::ImageError> {
 //! let img = image::open("some image")?;
-//! let mut oklab = okolors::OklabCounts::from_image(&img, 0.325);
 //!
-//! let resultA = okolors::from_oklab_counts(&oklab, 1, 5, 0.05, 64, 0);
+//! let mut oklab = okolors::OklabCounts::from_image(&img, u8::MAX)
+//!     .with_lightness_weight(0.325);
 //!
-//! oklab.set_lightness_weight(1.0);
-//! let resultB = okolors::from_oklab_counts(&oklab, 1, 5, 0.05, 64, 0);
+//! let resultA = okolors::run(&oklab, 1, 5, 0.05, 64, 0);
+//!
+//! oklab.set_lightness_weight(0.01);
+//! let resultB = okolors::run(&oklab, 1, 5, 0.05, 64, 0);
+//! #
 //! # Ok(())
 //! # }
 //! ```
 //!
 //! # Parameters
 //!
-//! Here are explanations of the various parameters that are shared between
-//! [`from_image`], [`from_rgbimage`], [`from_srgb`], and [`from_oklab_counts`].
+//! Here are explanations for the various parameters of [`run`] and more.
 //!
 //! In short, the `trials`, `convergence_threshold`, and `max_iter` parameters
 //! control the color accuracy at the expense of running time.
@@ -64,19 +64,19 @@
 //! The [README](https://github.com/Ivordir/Okolors#readme) contains some visual examples of the effects of the parameters below.
 //!
 //! Note that if `trials = 0`, `k = 0`, or an empty slice of Srgb colors is provided,
-//! then the [`KmeansResult`] will have no centroids and a variance of `0.0`.
+//! then the returned [`KmeansResult`] will have no centroids and a variance of `0.0`.
 //!
 //! ## Lightness Weight
 //!
-//! This is used to scale down the lightness component of the Oklab colors when performing color difference.
+//! This is used to scale down the lightness component of the [`Oklab`] colors when performing color difference.
 //!
 //! A value around `0.325` seems to provide similar results to the CIELAB color space.
 //!
 //! Lightness weights should be in the range `0.0..=1.0`.
-//! A value of `1.0` indicates no scaling, and performs color difference in the Oklab color space using standard euclidean distance.
+//! A value of `1.0` indicates no scaling and performs color difference in the [`Oklab`] color space using standard euclidean distance.
 //! Otherwise, lower weights have the effect of merging similar colors together, possibly bringing out more distinct hues.
 //! Note that for weights near `0.0`, if the image contains black and white, then they will be averaged into a shade of gray.
-//! Also, the lightness weight affects the final variance, so it does not make sense to compare two results using their variance
+//! Also, the lightness weight affects the final variance, so it does not make sense to compare two [`KmeansResult`]s using their variance
 //! if the results came from different lightness weights.
 //!
 //! ## Trials
@@ -151,11 +151,16 @@
 #![allow(clippy::unreadable_literal)]
 
 use hashbrown::HashMap;
-use image::{DynamicImage, RgbImage};
-use palette::{FromColor, Oklab, Srgb};
+use image::{DynamicImage, RgbImage, RgbaImage};
+use palette::{FromColor, Oklab, Srgb, Srgba, WithAlpha};
+#[cfg(feature = "threads")]
+use rayon::prelude::*;
 
 mod kmeans;
 pub use kmeans::KmeansResult;
+
+/// The format used to convert an [`Srgb`] color into a `u32` for hashing
+type Packed = palette::rgb::channels::Rgba;
 
 /// Deduplicated [`Oklab`] colors converted from [`Srgb`] colors
 #[derive(Debug, Clone)]
@@ -169,23 +174,13 @@ pub struct OklabCounts {
 }
 
 impl OklabCounts {
-	/// Create an `OklabCounts` with empty Vecs and a lightness weight of `1.0`
-	#[must_use]
-	pub const fn new() -> Self {
-		Self {
-			colors: Vec::new(),
-			counts: Vec::new(),
-			lightness_weight: 1.0,
-		}
-	}
-
 	/// Get the underlying Vec of [`Oklab`] colors
 	#[must_use]
 	pub fn colors(&self) -> &Vec<Oklab> {
 		&self.colors
 	}
 
-	/// Get the number of duplicate [`Srgb`] pixels for each [`Oklab`] color
+	/// Get the number of duplicate [`Srgb`] colors for each [`Oklab`] color
 	#[must_use]
 	pub fn counts(&self) -> &Vec<u32> {
 		&self.counts
@@ -211,10 +206,13 @@ impl OklabCounts {
 		self.lightness_weight
 	}
 
-	/// Change the lightness weight to provided value which should be in the range `0.0..=1.0`.
+	/// Set the lightness weight to the provided value which should be in the range `0.0..=1.0`
+	///
+	/// `lightness_weight` is used to scale down each [`Oklab`] color's lightness when performing color difference.
 	pub fn set_lightness_weight(&mut self, weight: f32) {
 		// Values outside this range do not make sense but will technically work, so this is a debug assert
 		debug_assert!((0.0..=1.0).contains(&weight));
+
 		let lightness_weight = self.lightness_weight;
 
 		#[allow(clippy::float_cmp)]
@@ -233,36 +231,18 @@ impl OklabCounts {
 		self.lightness_weight = weight;
 	}
 
-	/// Converts a slice of [`Srgb`] colors to [`Oklab`] colors, merging duplicate [`Srgb`] colors in the process.
+	/// Set the lightness weight to the provided value which should be in the range `0.0..=1.0`
 	///
-	/// `lightness_weight` is used to scale down each color's lightness when performing color difference
-	/// and should be in the range `0.0..=1.0`.
-	#[cfg(feature = "threads")]
+	/// `lightness_weight` is used to scale down each [`Oklab`] color's lightness when performing color difference.
 	#[must_use]
-	pub fn from_srgb(pixels: &[Srgb<u8>], lightness_weight: f32) -> Self {
-		use rayon::prelude::*;
+	pub fn with_lightness_weight(mut self, lightness_weight: f32) -> Self {
+		self.set_lightness_weight(lightness_weight);
+		self
+	}
 
-		// Converting from Srgb to Oklab is expensive, so let's group identical pixels.
-		// This will also have the effect of speeding up k-means, since there will be less data points.
-
-		/// The format used to convert an Srgb pixel into a u32 for hashing
-		type Packed = palette::rgb::channels::Rgba;
-
-		// We use hashbrown::HashMap instead of std::collections::HashMap, since:
-		// - AHash is faster than SipHash (we do not need the DDoS protection)
-		// - the standard HashMap uses thead-local random state which causes non-deterministic output with rayon,
-		//   so we would have to sort the final colors/counts to restore determinism.
-		let mut thread_counts = pixels
-			.par_iter()
-			// setting min_len reduces the number of intermediate HashMaps (needed to be merged at the end, etc.)
-			.with_min_len(pixels.len() / rayon::current_num_threads())
-			.fold(HashMap::new, |mut counts, srgb| {
-				let key = srgb.into_u32::<Packed>();
-				*counts.entry(key).or_insert(0) += 1_u32;
-				counts
-			})
-			.collect::<Vec<_>>();
-
+	/// Create an [`OklabCounts`] from a Vec of color counts
+	#[cfg(feature = "threads")]
+	fn from_thread_counts(mut thread_counts: Vec<HashMap<u32, u32>>) -> Self {
 		// Merge counts from each thread
 		let mut counts = thread_counts.pop().expect("one thread");
 		for other_counts in thread_counts {
@@ -276,23 +256,80 @@ impl OklabCounts {
 			.map(|(key, count)| (Oklab::from_color(Srgb::from_u32::<Packed>(key).into_format()), count))
 			.unzip();
 
-		let mut data = OklabCounts { colors, counts, lightness_weight: 1.0 };
-		data.set_lightness_weight(lightness_weight);
-		data
+		OklabCounts { colors, counts, lightness_weight: 1.0 }
 	}
 
-	/// Converts a slice of [`Srgb`] colors to [`Oklab`] colors, merging duplicate [`Srgb`] colors in the process.
-	///
-	/// `lightness_weight` is used to scale down each color's lightness when performing color difference
-	/// and should be in the range `0.0..=1.0`.
-	#[cfg(not(feature = "threads"))]
+	/// Create an [`OklabCounts`] from a slice of [`Srgb`] colors
+	#[cfg(feature = "threads")]
 	#[must_use]
-	pub fn from_srgb(pixels: &[Srgb<u8>], lightness_weight: f32) -> Self {
+	pub fn from_srgb(pixels: &[Srgb<u8>]) -> Self {
 		// Converting from Srgb to Oklab is expensive, so let's group identical pixels.
 		// This will also have the effect of speeding up k-means, since there will be less data points.
 
-		/// The format used to convert an Srgb pixel into a u32 for hashing
-		type Packed = palette::rgb::channels::Rgba;
+		// We use hashbrown::HashMap instead of std::collections::HashMap, since:
+		// - AHash is faster than SipHash (we do not need the DDoS protection)
+		// - the standard HashMap uses thead-local random state which causes non-deterministic output with rayon,
+		//   so we would have to sort the final colors/counts to restore determinism.
+		let thread_counts = pixels
+			.par_iter()
+			// setting min_len reduces the number of intermediate HashMaps (needed to be merged at the end, etc.)
+			.with_min_len(pixels.len() / rayon::current_num_threads())
+			.fold(HashMap::new, |mut counts, srgb| {
+				let key = srgb.into_u32::<Packed>();
+				*counts.entry(key).or_insert(0) += 1_u32;
+				counts
+			})
+			.collect::<Vec<_>>();
+
+		Self::from_thread_counts(thread_counts)
+	}
+
+	/// Create an [`OklabCounts`] from a slice of [`Srgba`] colors
+	///
+	/// Colors with an alpha value less than `alpha_threshold` are excluded from the resulting [`OklabCounts`].
+	#[cfg(feature = "threads")]
+	#[must_use]
+	pub fn from_srgba(pixels: &[Srgba<u8>], alpha_threshold: u8) -> Self {
+		// Converting from Srgb to Oklab is expensive, so let's group identical pixels.
+		// This will also have the effect of speeding up k-means, since there will be less data points.
+
+		// We use hashbrown::HashMap instead of std::collections::HashMap, since:
+		// - AHash is faster than SipHash (we do not need the DDoS protection)
+		// - the standard HashMap uses thead-local random state which causes non-deterministic output with rayon,
+		//   so we would have to sort the final colors/counts to restore determinism.
+		let thread_counts = pixels
+			.par_iter()
+			// setting min_len reduces the number of intermediate HashMaps (needed to be merged at the end, etc.)
+			.with_min_len(pixels.len() / rayon::current_num_threads())
+			.fold(HashMap::new, |mut counts, srgb| {
+				if srgb.alpha >= alpha_threshold {
+					let key = srgb.with_alpha(0).into_u32::<Packed>();
+					*counts.entry(key).or_insert(0) += 1_u32;
+				}
+				counts
+			})
+			.collect::<Vec<_>>();
+
+		Self::from_thread_counts(thread_counts)
+	}
+
+	/// Create an [`OklabCounts`] from color counts
+	#[cfg(not(feature = "threads"))]
+	fn from_counts(counts: HashMap<u32, u32>) -> Self {
+		let (colors, counts) = counts
+			.into_iter()
+			.map(|(key, count)| (Oklab::from_color(Srgb::from_u32::<Packed>(key).into_format()), count))
+			.unzip();
+
+		OklabCounts { colors, counts, lightness_weight: 1.0 }
+	}
+
+	/// Create an [`OklabCounts`] from a slice of [`Srgb`] colors
+	#[cfg(not(feature = "threads"))]
+	#[must_use]
+	pub fn from_srgb(pixels: &[Srgb<u8>]) -> Self {
+		// Converting from Srgb to Oklab is expensive, so let's group identical pixels.
+		// This will also have the effect of speeding up k-means, since there will be less data points.
 
 		// Packed Srgb -> count
 		let mut counts: HashMap<u32, u32> = HashMap::new();
@@ -301,114 +338,70 @@ impl OklabCounts {
 			*counts.entry(key).or_insert(0) += 1;
 		}
 
-		let (colors, counts) = counts
-			.into_iter()
-			.map(|(key, count)| (Oklab::from_color(Srgb::from_u32::<Packed>(key).into_format()), count))
-			.unzip();
-
-		let mut data = OklabCounts { colors, counts, lightness_weight: 1.0 };
-		data.set_lightness_weight(lightness_weight);
-		data
+		Self::from_counts(counts)
 	}
 
-	/// Converts an [`RgbImage`]'s colors to [`Oklab`] colors, merging duplicate [`Srgb`] colors in the process.
+	/// Create an [`OklabCounts`] from a slice of [`Srgba`] colors
 	///
-	/// `lightness_weight` is used to scale down each color's lightness when performing color difference
-	/// and should be in the range `0.0..=1.0`.
+	/// Colors with an alpha value less than `alpha_threshold` are excluded from the resulting [`OklabCounts`].
+	#[cfg(not(feature = "threads"))]
 	#[must_use]
-	pub fn from_rgbimage(image: &RgbImage, lightness_weight: f32) -> Self {
-		Self::from_srgb(palette::cast::from_component_slice(image.as_raw()), lightness_weight)
+	pub fn from_srgba(pixels: &[Srgba<u8>], alpha_threshold: u8) -> Self {
+		// Converting from Srgb to Oklab is expensive, so let's group identical pixels.
+		// This will also have the effect of speeding up k-means, since there will be less data points.
+
+		// Packed Srgb -> count
+		let mut counts: HashMap<u32, u32> = HashMap::new();
+		for srgb in pixels {
+			if srgb.alpha >= alpha_threshold {
+				let key = srgb.with_alpha(0).into_u32::<Packed>();
+				*counts.entry(key).or_insert(0) += 1;
+			}
+		}
+
+		Self::from_counts(counts)
 	}
 
-	/// Converts an image's [`Srgb`] colors to [`Oklab`] colors, merging duplicate [`Srgb`] colors in the process.
+	/// Create an [`OklabCounts`] from an `RgbImage`
+	#[must_use]
+	pub fn from_rgbimage(image: &RgbImage) -> Self {
+		Self::from_srgb(palette::cast::from_component_slice(image.as_raw()))
+	}
+
+	/// Create an [`OklabCounts`] from an `RgbaImage`
 	///
-	/// `lightness_weight` is used to scale down each color's lightness when performing color difference
-	/// and should be in the range `0.0..=1.0`.
+	/// Pixels with an alpha value less than `alpha_threshold` are excluded from the resulting [`OklabCounts`].
 	#[must_use]
-	pub fn from_image(image: &DynamicImage, lightness_weight: f32) -> Self {
-		Self::from_rgbimage(&image.to_rgb8(), lightness_weight)
+	pub fn from_rgbaimage(image: &RgbaImage, alpha_threshold: u8) -> Self {
+		Self::from_srgba(palette::cast::from_component_slice(image.as_raw()), alpha_threshold)
 	}
-}
 
-/// Runs k-means on the provided slice of [`Srgb`] colors.
-///
-/// See the crate documentation for examples and information on each parameter.
-#[must_use]
-pub fn from_srgb(
-	pixels: &[Srgb<u8>],
-	lightness_weight: f32,
-	trials: u32,
-	k: u8,
-	convergence_threshold: f32,
-	max_iter: u32,
-	seed: u64,
-) -> KmeansResult {
-	from_oklab_counts(
-		&OklabCounts::from_srgb(pixels, lightness_weight),
-		trials,
-		k,
-		convergence_threshold,
-		max_iter,
-		seed,
-	)
-}
+	/// Create an [`OklabCounts`] from an `DynamicImage`
+	///
+	/// Pixels with an alpha value less than `alpha_threshold` are excluded from the resulting [`OklabCounts`].
+	/// Of course, if the image does not have an alpha channel, then `alpha_threshold` is ignored.
+	#[must_use]
+	pub fn from_image(image: &DynamicImage, alpha_threshold: u8) -> Self {
+		use image::DynamicImage::*;
+		match image {
+			&ImageLuma8(_) | &ImageLuma16(_) | &ImageRgb8(_) | &ImageRgb16(_) | &ImageRgb32F(_) => {
+				Self::from_rgbimage(&image.to_rgb8())
+			},
 
-/// Runs k-means on the provided [`RgbImage`]. The image is assumed to be in the `sRGB` color space.
-///
-/// See the crate documentation for examples and information on each parameter.
-#[must_use]
-pub fn from_rgbimage(
-	image: &RgbImage,
-	lightness_weight: f32,
-	trials: u32,
-	k: u8,
-	convergence_threshold: f32,
-	max_iter: u32,
-	seed: u64,
-) -> KmeansResult {
-	from_oklab_counts(
-		&OklabCounts::from_rgbimage(image, lightness_weight),
-		trials,
-		k,
-		convergence_threshold,
-		max_iter,
-		seed,
-	)
-}
+			&ImageLumaA8(_) | &ImageLumaA16(_) | &ImageRgba8(_) | &ImageRgba16(_) | &ImageRgba32F(_) => {
+				Self::from_rgbaimage(&image.to_rgba8(), alpha_threshold)
+			},
 
-/// Runs k-means on the provided image. The image is assumed to be in the `sRGB` color space.
-///
-/// See the crate documentation for examples and information on each parameter.
-#[must_use]
-pub fn from_image(
-	image: &DynamicImage,
-	lightness_weight: f32,
-	trials: u32,
-	k: u8,
-	convergence_threshold: f32,
-	max_iter: u32,
-	seed: u64,
-) -> KmeansResult {
-	from_oklab_counts(
-		&OklabCounts::from_image(image, lightness_weight),
-		trials,
-		k,
-		convergence_threshold,
-		max_iter,
-		seed,
-	)
+			_ => Self::from_rgbaimage(&image.to_rgba8(), alpha_threshold),
+		}
+	}
 }
 
 /// Runs k-means on a [`OklabCounts`].
 ///
-/// Converting from [`Srgb`] to [`Oklab`] is expensive,
-/// so use this function if you need to run k-means multiple times on the same data but with different arguments.
-/// This function allows you to reuse the [`OklabCounts`],
-/// whereas [`from_image`], [`from_rgbimage`], and [`from_srgb`] must recompute [`OklabCounts`] every time.
-///
 /// See the crate documentation for examples and information on each parameter.
 #[must_use]
-pub fn from_oklab_counts(
+pub fn run(
 	oklab_counts: &OklabCounts,
 	trials: u32,
 	k: u8,
@@ -447,17 +440,19 @@ mod tests {
 	#[test]
 	#[allow(clippy::float_cmp)]
 	fn set_lightness_weight_restores_lightness() {
-		let mut oklab = OklabCounts::new();
+		let (colors, counts) = test_colors()
+			.into_iter()
+			.map(|color| (Oklab::from_color(color.into_format()), 1))
+			.unzip();
 
-		for color in test_colors() {
-			oklab.colors.push(Oklab::from_color(color.into_format()));
-			oklab.counts.push(1);
-		}
+		let lightness_weight = 1.0;
+
+		let mut oklab = OklabCounts { colors, counts, lightness_weight };
 
 		let expected = oklab.clone();
 
 		oklab.set_lightness_weight(0.325);
-		oklab.set_lightness_weight(1.0);
+		oklab.set_lightness_weight(lightness_weight);
 
 		for (&color, &expected) in oklab.colors.iter().zip(&expected.colors) {
 			assert_oklab_eq(color, expected, 1e-7);

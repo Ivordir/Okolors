@@ -445,9 +445,6 @@ fn run_trials<D: ColorDifference>(
 /// Run multiple trials of k-means, taking the trial with the lowest variance
 ///
 /// An empty result with no centroids is returned if `oklab` is empty, `trials` = 0, or `k` = 0.
-///
-/// # Panics
-/// Panics if the length of `oklab` is greater than `u32::MAX`
 pub fn run(
 	oklab: &OklabCounts,
 	trials: u32,

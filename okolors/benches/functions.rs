@@ -2,6 +2,7 @@ use criterion::{
 	black_box, criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, BenchmarkId, Criterion,
 	SamplingMode,
 };
+use image::GenericImageView;
 use okolors::OklabCounts;
 use std::time::Duration;
 
@@ -40,14 +41,15 @@ fn preprocessing(c: &mut Criterion) {
 	let mut group = create_group(c, "preprocessing");
 
 	for (path, image) in load_images() {
-		let image = image.to_rgb8();
 		for (width, height) in [(480, 270), (1920, 1080), image.dimensions()] {
-			let image = image::imageops::thumbnail(&image, width, height);
+			let image = image.thumbnail(width, height);
 			group.bench_with_input(
 				BenchmarkId::new(&path, format!("{width}x{height}")),
 				&image,
 				|b, image| {
-					b.iter(|| OklabCounts::from_rgbimage(image, 0.325));
+					b.iter(|| {
+						OklabCounts::from_image(image, black_box(u8::MAX)).with_lightness_weight(black_box(0.325))
+					});
 				},
 			);
 		}
@@ -59,7 +61,12 @@ fn kmeans(c: &mut Criterion) {
 
 	let counts = load_images()
 		.into_iter()
-		.map(|(path, image)| (path, OklabCounts::from_image(&image, 0.325)))
+		.map(|(path, image)| {
+			(
+				path,
+				OklabCounts::from_image(&image, u8::MAX).with_lightness_weight(black_box(0.325)),
+			)
+		})
 		.collect::<Vec<_>>();
 
 	fn bench(
@@ -72,7 +79,7 @@ fn kmeans(c: &mut Criterion) {
 		for (path, counts) in counts {
 			group.bench_with_input(BenchmarkId::new(name, path), &counts, |b, counts| {
 				b.iter(|| {
-					okolors::from_oklab_counts(
+					okolors::run(
 						counts,
 						black_box(1),
 						black_box(k),
@@ -95,17 +102,17 @@ fn kmeans(c: &mut Criterion) {
 	bench("low convergence", &mut group, &counts, 8, 0.01);
 }
 
-fn from_image(c: &mut Criterion) {
-	let mut group = create_group(c, "from_image");
+fn all_steps(c: &mut Criterion) {
+	let mut group = create_group(c, "all_steps");
 	group.measurement_time(Duration::from_secs(8));
 
 	let images = load_images();
 	for (path, image) in &images {
 		group.bench_with_input(BenchmarkId::from_parameter(path), image, |b, image| {
 			b.iter(|| {
-				okolors::from_image(
-					image,
-					black_box(0.325),
+				okolors::run(
+					&okolors::OklabCounts::from_image(image, black_box(u8::MAX))
+						.with_lightness_weight(black_box(0.325)),
 					black_box(1),
 					black_box(8),
 					black_box(0.05),
@@ -117,5 +124,5 @@ fn from_image(c: &mut Criterion) {
 	}
 }
 
-criterion_group!(benches, preprocessing, kmeans, from_image);
+criterion_group!(benches, preprocessing, kmeans, all_steps);
 criterion_main!(benches);

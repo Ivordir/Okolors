@@ -95,7 +95,28 @@ pub struct Options {
 	#[arg(short = 'w', long, default_value_t = 0.325, value_parser = parse_valid_lightness_weight)]
 	pub lightness_weight: f32,
 
+	/// Ignore pixels with an alpha value less than this threshold
+	///
+	/// The threshold value should be in the range [0, 255].
+	///
+	/// To ignore all transparent pixels use a threshold value of 255.
+	/// To include all partially transparent pixels use a value of 1.
+	/// Of course, if the provided image has no alpha channel, then this value does nothing.
+	#[arg(short = 'a', long, default_value_t = u8::MAX)]
+	pub alpha_threshold: u8,
+
+	/// The maximum image size, in number of pixels, before a thumbnail is created
+	///
+	/// Unfortunately, this option may reduce the color accuracy,
+	/// as multiple pixels in the original image are interpolated to form a pixel in the thumbnail.
+	/// This option is intended for reducing the time needed for large images,
+	/// but it can also be used to provide fast, inaccurate results for any image.
+	#[arg(short = 'p', long, default_value_t = u32::MAX)]
+	pub max_pixels: u32,
+
 	/// The (maximum) number of colors to find
+	///
+	/// k should be in the range [0, 255].
 	#[arg(short, default_value_t = 8)]
 	pub k: u8,
 
@@ -129,15 +150,6 @@ pub struct Options {
 	/// You can use the --verbose option to see how many iterations the best k-means trial took.
 	#[arg(short = 'i', long, default_value_t = 128)]
 	pub max_iter: u32,
-
-	/// The maximum image size, in number of pixels, before a thumbnail is created
-	///
-	/// Unfortunately, this option may reduce the color accuracy,
-	/// as multiple pixels in the original image are interpolated to form a pixel in the thumbnail.
-	/// This option is intended for reducing the time needed for large images,
-	/// but it can also be used to provide fast, inaccurate results for any image.
-	#[arg(short = 'p', long, default_value_t = u32::MAX)]
-	pub max_pixels: u32,
 
 	/// The seed value used for the random number generator
 	#[arg(long, default_value_t = 0)]
