@@ -491,7 +491,7 @@ mod tests {
 	}
 
 	#[test]
-	fn transparent_threshold() {
+	fn alpha_threshold() {
 		let transparent = test_colors()
 			.iter()
 			.map(|color| color.with_alpha(0_u8))
