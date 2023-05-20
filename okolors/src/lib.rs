@@ -416,6 +416,7 @@ pub fn run(
 mod tests {
 	use super::*;
 	use approx::assert_relative_eq;
+	use palette::WithAlpha;
 
 	fn test_colors() -> Vec<Srgb<u8>> {
 		let range = (0..u8::MAX).step_by(16);
@@ -432,28 +433,74 @@ mod tests {
 		colors
 	}
 
+	fn cmp_oklab(x: &Oklab, y: &Oklab) -> std::cmp::Ordering {
+		use std::cmp::Ordering::*;
+		match f32::total_cmp(&x.l, &y.l) {
+			Equal => match f32::total_cmp(&x.a, &y.a) {
+				Equal => f32::total_cmp(&x.b, &y.b),
+				cmp => cmp,
+			},
+			cmp => cmp,
+		}
+	}
+
+	fn assert_oklab_counts_eq(result: &OklabCounts, expected: &OklabCounts) {
+		assert_eq!(expected.lightness_weight, result.lightness_weight);
+
+		for (&expected, &color) in expected.colors.iter().zip(&result.colors) {
+			assert_relative_eq!(expected, color);
+		}
+
+		assert_eq!(expected.counts, result.counts);
+	}
+
 	#[test]
 	#[allow(clippy::float_cmp)]
 	fn set_lightness_weight_restores_lightness() {
-		let (colors, counts) = test_colors()
-			.into_iter()
-			.map(|color| (Oklab::from_color(color.into_format()), 1))
-			.unzip();
-
-		let lightness_weight = 1.0;
-
-		let mut oklab = OklabCounts { colors, counts, lightness_weight };
+		let mut oklab = OklabCounts::from_srgb(&test_colors());
 
 		let expected = oklab.clone();
 
 		oklab.set_lightness_weight(0.325);
-		oklab.set_lightness_weight(lightness_weight);
+		assert_ne!(expected.lightness_weight, oklab.lightness_weight);
 
-		for (&color, &expected) in oklab.colors.iter().zip(&expected.colors) {
-			assert_relative_eq!(color, expected);
-		}
+		oklab.set_lightness_weight(expected.lightness_weight);
+		assert_oklab_counts_eq(&expected, &oklab);
+	}
 
-		assert_eq!(expected.counts, oklab.counts);
-		assert_eq!(expected.lightness_weight, oklab.lightness_weight);
+	#[test]
+	fn transparent_results_match() {
+		let rgb = test_colors();
+		let matte = rgb.iter().map(|color| color.with_alpha(u8::MAX)).collect::<Vec<_>>();
+		let transparent = rgb.iter().map(|color| color.with_alpha(0_u8)).collect::<Vec<_>>();
+
+		let mut expected = OklabCounts::from_srgb(&rgb);
+		let mut matte_result_a = OklabCounts::from_srgba(&matte, u8::MAX);
+		let mut matte_result_b = OklabCounts::from_srgba(&matte, 0);
+		let mut transparent_result = OklabCounts::from_srgba(&transparent, 0);
+
+		// colors may be in different order due to differences in rayon's scheduling between `from_srgb` and `from_srgba`
+		expected.colors.sort_unstable_by(cmp_oklab);
+		matte_result_a.colors.sort_unstable_by(cmp_oklab);
+		matte_result_b.colors.sort_unstable_by(cmp_oklab);
+		transparent_result.colors.sort_unstable_by(cmp_oklab);
+
+		assert_oklab_counts_eq(&expected, &matte_result_a);
+		assert_oklab_counts_eq(&expected, &matte_result_b);
+		assert_oklab_counts_eq(&expected, &transparent_result);
+	}
+
+	#[test]
+	fn transparent_threshold() {
+		let transparent = test_colors()
+			.iter()
+			.map(|color| color.with_alpha(0_u8))
+			.collect::<Vec<_>>();
+
+		let result_a = OklabCounts::from_srgba(&transparent, u8::MAX);
+		let result_b = OklabCounts::from_srgba(&transparent, 1);
+
+		assert_eq!(result_a.num_colors(), 0);
+		assert_eq!(result_b.num_colors(), 0);
 	}
 }
