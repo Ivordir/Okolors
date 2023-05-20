@@ -415,12 +415,7 @@ pub fn run(
 #[cfg(test)]
 mod tests {
 	use super::*;
-
-	pub fn assert_oklab_eq(x: Oklab, y: Oklab, eps: f32) {
-		assert!((x.l - y.l).abs() <= eps);
-		assert!((x.a - y.a).abs() <= eps);
-		assert!((x.b - y.b).abs() <= eps);
-	}
+	use approx::assert_relative_eq;
 
 	fn test_colors() -> Vec<Srgb<u8>> {
 		let range = (0..u8::MAX).step_by(16);
@@ -455,7 +450,7 @@ mod tests {
 		oklab.set_lightness_weight(lightness_weight);
 
 		for (&color, &expected) in oklab.colors.iter().zip(&expected.colors) {
-			assert_oklab_eq(color, expected, 1e-7);
+			assert_relative_eq!(color, expected);
 		}
 
 		assert_eq!(expected.counts, oklab.counts);

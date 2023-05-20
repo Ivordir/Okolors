@@ -466,6 +466,7 @@ pub fn run(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use approx::assert_relative_eq;
 
 	fn test_colors() -> Vec<Oklab> {
 		vec![
@@ -615,12 +616,6 @@ mod tests {
 		center_sum
 	}
 
-	fn assert_sum_eq(x: Oklab<f64>, y: Oklab<f64>) {
-		assert!((x.l - y.l).abs() <= 1e-8);
-		assert!((x.a - y.a).abs() <= 1e-8);
-		assert!((x.b - y.b).abs() <= 1e-8);
-	}
-
 	#[test]
 	fn compute_initial_sums_preserves_sum() {
 		let (data, state, _) = initialize(4);
@@ -636,7 +631,7 @@ mod tests {
 		}
 
 		assert_eq!(expected_count, state.centers.count.iter().sum());
-		assert_sum_eq(expected_sum, center_sum(&state.centers.sum));
+		assert_relative_eq!(expected_sum, center_sum(&state.centers.sum));
 	}
 
 	#[test]
@@ -649,7 +644,7 @@ mod tests {
 		update_assignments::<EuclideanDistance>(&data, &mut state.centers, &state.distances, &mut state.points);
 
 		assert_eq!(expected_count, state.centers.count.iter().sum());
-		assert_sum_eq(expected_sum, center_sum(&state.centers.sum));
+		assert_relative_eq!(expected_sum, center_sum(&state.centers.sum));
 	}
 
 	#[test]
@@ -669,7 +664,7 @@ mod tests {
 		}
 
 		for &sum in &state.centers.sum {
-			assert_sum_eq(sum, Oklab { l: 0.0, a: 0.0, b: 0.0 });
+			assert_relative_eq!(sum, Oklab { l: 0.0, a: 0.0, b: 0.0 });
 		}
 
 		for &count in &state.centers.count {
@@ -703,7 +698,7 @@ mod tests {
 
 		assert!((result.variance - expected.variance).abs() <= 1e-8);
 		for (&result, &expected) in result.centroids.iter().zip(&expected.centroids) {
-			crate::tests::assert_oklab_eq(result, expected, 1e-8);
+			assert_relative_eq!(result, expected);
 		}
 		assert_eq!(result.counts, expected.counts);
 		assert!(result.iterations <= expected.iterations);

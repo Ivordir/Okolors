@@ -687,6 +687,7 @@ dependencies = [
 name = "okolors"
 version = "0.1.1"
 dependencies = [
+ "approx",
  "criterion",
  "hashbrown 0.13.2",
  "image",
