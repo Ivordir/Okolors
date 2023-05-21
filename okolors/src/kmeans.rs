@@ -125,7 +125,8 @@ pub struct KmeansResult {
 
 impl KmeansResult {
 	/// Create an empty result, representing that no k-means trials were able to be run
-	const fn empty() -> Self {
+	#[must_use]
+	pub const fn empty() -> Self {
 		Self {
 			variance: 0.0,
 			centroids: Vec::new(),

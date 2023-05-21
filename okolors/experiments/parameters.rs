@@ -118,45 +118,57 @@ fn print_results<P: Copy, T: Display + Copy>(
 	}
 }
 
+use clap::{Parser, ValueEnum};
+
+#[derive(Copy, Clone, ValueEnum)]
+enum Parameter {
+	Trials,
+	Convergence,
+}
+
+#[derive(Parser)]
+struct Options {
+	parameter: Parameter,
+}
+
 fn main() {
-	let images = || {
-		load_images()
-			.iter()
-			.flat_map(|image| {
-				[(480, 270), (1920, 1080)]
-					.into_iter()
-					.map(|(width, height)| OklabCounts::from_image(&image.thumbnail(width, height), u8::MAX))
-			})
-			.collect::<Vec<_>>()
-	};
+	let options = Options::parse();
+
+	let images = load_images()
+		.iter()
+		.flat_map(|image| {
+			[(480, 270), (1920, 1080)]
+				.into_iter()
+				.map(|(width, height)| OklabCounts::from_image(&image.thumbnail(width, height), u8::MAX))
+		})
+		.collect::<Vec<_>>();
 
 	let trials = [1, 4, 8];
 	let k = [4, 8, 32];
 	let convergence = [0.1, 0.05, 0.01];
 	let seed = [0, 42, 123456789];
 
-	match std::env::args().collect::<Vec<_>>().get(1).map(|x| x.as_str()) {
-		Some("trials") => {
+	match options.parameter {
+		Parameter::Trials => {
 			// The avg_centroid_diff and avg_variance_perc_diff seem to decrease exponentially as trials increase (R^2 ~= 0.93).
 			// 1-3 or 1-5 trials give the the most "bang for your buck", as trials past this give ever more dimishing returns.
 			print_results(
 				"trials",
 				&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-				iproduct!(&images(), k, convergence, seed),
+				iproduct!(&images, k, convergence, seed),
 				|(counts, k, convergence, seed), trial| okolors::run(counts, trial, k, convergence, 1024, seed),
 			)
 		},
-		Some("convergence") => {
+		Parameter::Convergence => {
 			// This option seems to depend on k, so maybe Okolors should treat this as an average?
 			// But for k around 4-10, convergence values lower than 0.01 do not make sense as the avg_centroid_diff
 			// is much lower than than the "just noticeable difference".
 			print_results(
 				"convergence",
 				&[0.1, 0.05, 0.01, 0.005, 0.001],
-				iproduct!(&images(), trials, [4_u8, 6, 8, 10], seed),
+				iproduct!(&images, trials, [4_u8, 6, 8, 10], seed),
 				|(counts, trial, k, seed), convergence| okolors::run(counts, trial, k, convergence, 1024, seed),
 			)
 		},
-		_ => eprintln!("Unexpected arg!"),
 	}
 }
