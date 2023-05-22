@@ -87,29 +87,26 @@ Note that the CLI flags translate one-to-one with the library parameters, if the
 Despite using k-means which is more accurate but slower than something like median cut quantization,
 Okolors still seems to be pretty fast. Excluding the time to read and decode the image from disk,
 below are Okolors's running times for each image as reported by [criteron](https://github.com/bheisler/criterion.rs).
-The parameters used were `k = 8`, `convergence_threshold = 0.05`, `trials = 1`, `max_iter = 1024`, and `lightness_weight = 1.0`.
-The benchmarks were run on a 4-core CPU, so YMMV on different hardware (especially with more or less cores).
+The parameters used were `k = 8`, `convergence_threshold = 0.05`, `trials = 1`, `max_iter = 1024`, and `lightness_weight = 0.325`.
+The benchmarks were run on a 4-core/8-thread CPU, so YMMV on different hardware (especially with more or less cores).
 
 | Image                    | Dimensions | Time (ms) |
 |:------------------------ |:----------:| ---------:|
-| Akihabara.jpg            | 5663x3669  |       376 |
-| Bryggen.jpg              | 5508x3098  |        89 |
-| Cesky Krumlov.jpg        | 4608x3456  |       177 |
-| Hokkaido.jpg             | 6000x4000  |       186 |
-| Jewel Changi.jpg         | 6000x4000  |       128 |
-| Lake Atitlan.jpg         | 5112x3408  |       374 |
+| Akihabara.jpg            | 5663x3669  |       353 |
+| Bryggen.jpg              | 5508x3098  |        88 |
+| Cesky Krumlov.jpg        | 4608x3456  |       170 |
+| Hokkaido.jpg             | 6000x4000  |       180 |
+| Jewel Changi.jpg         | 6000x4000  |       124 |
+| Lake Atitlan.jpg         | 5112x3408  |       301 |
 | Lake Mendota.jpg         | 3839x5758  |       124 |
-| Louvre.jpg               | 6056x4000  |       172 |
+| Louvre.jpg               | 6056x4000  |       177 |
 | Sydney Sunset.jpg        | 2880x1508  |        22 |
-| Termas Geometricas.jpg   | 5472x3648  |       171 |
-| Yellow Crane Tower.jpg   | 3785x2839  |       121 |
-| Yosemite Tunnel View.jpg | 5580x3720  |       176 |
+| Termas Geometricas.jpg   | 5472x3648  |       168 |
+| Yellow Crane Tower.jpg   | 3785x2839  |       119 |
+| Yosemite Tunnel View.jpg | 5580x3720  |       172 |
 
 Note that these are high resolution images, so the running time can be much faster for lower resolution images.
 The binary also has a CLI flag to create a thumbnail for images over a certain size.
-
-The above times could be reduced by properly leveraging SIMD,
-possibly once [portable-simd](https://github.com/rust-lang/rust/issues/86656) becomes stable.
 
 # Features
 
