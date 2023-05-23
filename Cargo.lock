@@ -685,7 +685,7 @@ dependencies = [
 
 [[package]]
 name = "okolors"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "approx",
  "clap 4.3.0",
@@ -701,7 +701,7 @@ dependencies = [
 
 [[package]]
 name = "okolors-bin"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "clap 4.3.0",
  "colored",
