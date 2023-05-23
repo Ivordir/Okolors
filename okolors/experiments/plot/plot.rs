@@ -11,7 +11,7 @@ struct Options {
 	#[arg(short = 'w', long, default_value_t = 1.0)]
 	lightness_weight: f32,
 
-	#[arg(short, long, default_value_t = 3)]
+	#[arg(short = 'n', long, default_value_t = 3)]
 	trials: u32,
 
 	#[arg(short = 'e', long, default_value_t = 0.01)]
