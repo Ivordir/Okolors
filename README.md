@@ -23,6 +23,8 @@ see the [docs.rs](https://docs.rs/okolors/latest/okolors/) page as well.
 
 # Examples
 
+## CLI Flags
+
 Let's use the following photo for the examples below.
 
 ![Jewel Changi Airport Waterfall](docs/Jewel%20Changi.jpg)
@@ -81,6 +83,18 @@ If some of the colors still seem quite similar, then you can reduce/set the numb
 
 To see all the other command line options, pass `-h` for a summary or `--help` for detailed explanations.
 Note that the CLI flags translate one-to-one with the library parameters, if there is an equivalent.
+
+## Images
+
+The flags `-n 3 -e 0.01 -l 10,30,50,70 -s l` were used for the additional examples below.
+
+![](docs/Lake%20Mendota.jpg)
+
+![](docs/Yellow%20Crane%20Tower.jpg)
+
+![](docs/Louvre.jpg)
+
+![](docs/Cesky%20Krumlov.jpg)
 
 # Performance
 
