@@ -122,6 +122,8 @@ pub struct Options {
 
 	/// The number of trials of k-means to run
 	///
+	/// 1 to 3 or 1 to 5 trials is recommended.
+	///
 	/// k-means can get stuck in a local minimum, so you may want to run a few or more trials to get better results.
 	/// The trial with the lowest variance is picked.
 	#[arg(short = 'n', long, default_value_t = 1)]
