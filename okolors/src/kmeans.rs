@@ -689,7 +689,7 @@ mod tests {
 			.map(|(&old, &new)| EuclideanDistance::squared_distance(old, new).sqrt())
 			.sum::<f32>();
 
-		assert!((total_delta - expected).abs() <= 1e-8);
+		assert_relative_eq!(total_delta, expected);
 	}
 
 	fn assert_result_eq<D: ColorDifference>(data: &OklabCounts, k: u8, expected: &KmeansResult) {
@@ -697,7 +697,7 @@ mod tests {
 		let mut state = KmeansState::new(k, data.num_colors());
 		let result = kmeans::<D>(data, &mut state, k, 64, 0.01, 0);
 
-		assert!((result.variance - expected.variance).abs() <= 1e-8);
+		assert_relative_eq!(result.variance, expected.variance);
 		for (&result, &expected) in result.centroids.iter().zip(&expected.centroids) {
 			assert_relative_eq!(result, expected);
 		}
