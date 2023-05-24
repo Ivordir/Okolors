@@ -404,12 +404,12 @@ fn kmeans<D: ColorDifference>(
 		})
 		.sum();
 
-	let mut centroids = centers
+	let (mut centroids, counts): (Vec<_>, Vec<_>) = centers
 		.centroid
 		.iter()
 		.zip(&centers.count)
-		.filter_map(|(&color, &count)| if count == 0 { None } else { Some(color) })
-		.collect::<Vec<_>>();
+		.filter_map(|(&color, &count)| if count == 0 { None } else { Some((color, count)) })
+		.unzip();
 
 	#[allow(clippy::float_cmp)]
 	if oklab.lightness_weight != 0.0 && oklab.lightness_weight != 1.0 {
@@ -417,8 +417,6 @@ fn kmeans<D: ColorDifference>(
 			color.l /= oklab.lightness_weight;
 		}
 	}
-
-	let counts = centers.count.iter().copied().filter(|&n| n > 0).collect::<Vec<_>>();
 
 	centers.reset();
 	points.reset();
