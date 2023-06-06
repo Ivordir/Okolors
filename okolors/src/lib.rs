@@ -165,30 +165,18 @@ type Packed = palette::rgb::channels::Rgba;
 /// Deduplicated [`Oklab`] colors converted from [`Srgb`] colors
 #[derive(Debug, Clone)]
 pub struct OklabCounts {
-	/// Oklab colors
-	pub(crate) colors: Vec<Oklab>,
-	/// The number of duplicate [`Srgb`] pixels for each [`Oklab`] color
-	pub(crate) counts: Vec<u32>,
+	/// [`Oklab`] colors and the corresponding number of duplicate [`Srgb`] pixels
+	pub(crate) color_counts: Vec<(Oklab, u32)>,
 	/// The value used to scale down the lightness of each color
 	pub(crate) lightness_weight: f32,
 }
 
 impl OklabCounts {
-	/// Get the underlying Vec of [`Oklab`] colors
+	/// Gets the underlying Vec of [`Oklab`] colors and each corresponding [`u32`] count that indicates the number of duplicate [`Srgb`] pixels for the color.
+	/// Each [`Oklab`] color's lightness component is scaled down according to the current `lightness_weight`.
 	#[must_use]
-	pub fn colors(&self) -> &Vec<Oklab> {
-		&self.colors
-	}
-
-	/// Get the number of duplicate [`Srgb`] colors for each [`Oklab`] color
-	#[must_use]
-	pub fn counts(&self) -> &Vec<u32> {
-		&self.counts
-	}
-
-	/// Returns an iterator over each `(Oklab, count: u32)` pair
-	pub fn pairs(&self) -> impl Iterator<Item = (Oklab, u32)> + '_ {
-		self.colors.iter().copied().zip(self.counts.iter().copied())
+	pub fn weighted_pairs(&self) -> &Vec<(Oklab, u32)> {
+		&self.color_counts
 	}
 
 	/// Get the number of unique colors which is less than or equal to `2.pow(24)`
@@ -196,8 +184,8 @@ impl OklabCounts {
 	#[allow(clippy::cast_possible_truncation)]
 	pub fn num_colors(&self) -> u32 {
 		// Only 2^8^3 = 2^24 possible Srgb colors
-		debug_assert!(self.colors().len() <= usize::pow(2, 24));
-		self.colors.len() as u32
+		debug_assert!(self.color_counts.len() <= usize::pow(2, 24));
+		self.color_counts.len() as u32
 	}
 
 	/// Get the current lightness weight
@@ -223,8 +211,8 @@ impl OklabCounts {
 			let new_weight = if weight == 0.0 { 1.0 } else { weight };
 			let old_weight = if lightness_weight == 0.0 { 1.0 } else { lightness_weight };
 
-			for color in &mut self.colors {
-				color.l = (color.l / old_weight) * new_weight;
+			for color_count in &mut self.color_counts {
+				color_count.0.l = (color_count.0.l / old_weight) * new_weight;
 			}
 		}
 
@@ -251,12 +239,16 @@ impl OklabCounts {
 			}
 		}
 
-		let (colors, counts) = counts
+		let color_counts = counts
 			.into_par_iter()
-			.map(|(key, count)| (Oklab::from_color(Srgb::from_u32::<Packed>(key).into_format()), count))
-			.unzip();
+			.map(|(key, count)| {
+				let srgb = Srgb::from_u32::<Packed>(key);
+				let oklab = Oklab::<f32>::from_color(srgb.into_format());
+				(oklab, count)
+			})
+			.collect::<Vec<_>>();
 
-		OklabCounts { colors, counts, lightness_weight: 1.0 }
+		OklabCounts { color_counts, lightness_weight: 1.0 }
 	}
 
 	/// Create an [`OklabCounts`] from a slice of [`Srgb`] colors
@@ -316,12 +308,12 @@ impl OklabCounts {
 	/// Create an [`OklabCounts`] from color counts
 	#[cfg(not(feature = "threads"))]
 	fn from_counts(counts: HashMap<u32, u32>) -> Self {
-		let (colors, counts) = counts
+		let color_counts = counts
 			.into_iter()
 			.map(|(key, count)| (Oklab::from_color(Srgb::from_u32::<Packed>(key).into_format()), count))
-			.unzip();
+			.collect::<Vec<_>>();
 
-		OklabCounts { colors, counts, lightness_weight: 1.0 }
+		OklabCounts { color_counts, lightness_weight: 1.0 }
 	}
 
 	/// Create an [`OklabCounts`] from a slice of [`Srgb`] colors
@@ -433,7 +425,7 @@ mod tests {
 		colors
 	}
 
-	fn cmp_oklab(x: &Oklab, y: &Oklab) -> std::cmp::Ordering {
+	fn cmp_oklab_count((x, _): &(Oklab, u32), (y, _): &(Oklab, u32)) -> std::cmp::Ordering {
 		use std::cmp::Ordering::*;
 		match f32::total_cmp(&x.l, &y.l) {
 			Equal => match f32::total_cmp(&x.a, &y.a) {
@@ -447,11 +439,10 @@ mod tests {
 	fn assert_oklab_counts_eq(result: &OklabCounts, expected: &OklabCounts) {
 		assert_eq!(expected.lightness_weight, result.lightness_weight);
 
-		for (&expected, &color) in expected.colors.iter().zip(&result.colors) {
-			assert_relative_eq!(expected, color);
+		for (expected, color) in expected.color_counts.iter().zip(&result.color_counts) {
+			assert_relative_eq!(expected.0, color.0);
+			assert_eq!(expected.1, color.1);
 		}
-
-		assert_eq!(expected.counts, result.counts);
 	}
 
 	#[test]
@@ -480,10 +471,10 @@ mod tests {
 		let mut transparent_result = OklabCounts::from_srgba(&transparent, 0);
 
 		// colors may be in different order due to differences in rayon's scheduling between `from_srgb` and `from_srgba`
-		expected.colors.sort_unstable_by(cmp_oklab);
-		matte_result_a.colors.sort_unstable_by(cmp_oklab);
-		matte_result_b.colors.sort_unstable_by(cmp_oklab);
-		transparent_result.colors.sort_unstable_by(cmp_oklab);
+		expected.color_counts.sort_unstable_by(cmp_oklab_count);
+		matte_result_a.color_counts.sort_unstable_by(cmp_oklab_count);
+		matte_result_b.color_counts.sort_unstable_by(cmp_oklab_count);
+		transparent_result.color_counts.sort_unstable_by(cmp_oklab_count);
 
 		assert_oklab_counts_eq(&expected, &matte_result_a);
 		assert_oklab_counts_eq(&expected, &matte_result_b);

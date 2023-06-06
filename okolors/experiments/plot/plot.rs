@@ -57,7 +57,7 @@ fn main() {
 
 	println!("#Colors");
 	println!("a b l n color");
-	for (oklab, count) in oklab.pairs() {
+	for &(oklab, count) in oklab.weighted_pairs() {
 		if count >= options.min_count {
 			let count = if options.proportional {
 				count.ilog2() + 1 - min_size

@@ -140,7 +140,7 @@ impl KmeansResult {
 fn kmeans_plus_plus<D: ColorDifference>(
 	k: u8,
 	rng: &mut impl Rng,
-	colors: &[Oklab],
+	oklab: &OklabCounts,
 	centroids: &mut Vec<Oklab>,
 	weights: &mut [f32],
 ) {
@@ -150,17 +150,17 @@ fn kmeans_plus_plus<D: ColorDifference>(
 	};
 
 	// Pick any random first centroid
-	centroids.push(colors[rng.gen_range(0..colors.len())]);
+	centroids.push(oklab.color_counts[rng.gen_range(0..oklab.color_counts.len())].0);
 
 	// Pick each next centroid with a weighted probability based off the squared distance to its closest centroid
 	for i in 1..usize::from(k) {
 		let centroid = centroids[i - 1];
-		for (weight, &color) in weights.iter_mut().zip(colors) {
+		for (weight, &(color, _)) in weights.iter_mut().zip(&oklab.color_counts) {
 			*weight = f32::min(*weight, D::squared_distance(color, centroid));
 		}
 
 		match WeightedIndex::new(&*weights) {
-			Ok(sampler) => centroids.push(colors[sampler.sample(rng)]),
+			Ok(sampler) => centroids.push(oklab.color_counts[sampler.sample(rng)].0),
 			Err(AllWeightsZero) => return, // all points exactly match a centroid
 			Err(InvalidWeight | NoItem | TooMany) => {
 				unreachable!("distances are >= 0 and colors.len() is in 1..=2.pow(24)")
@@ -171,7 +171,7 @@ fn kmeans_plus_plus<D: ColorDifference>(
 
 /// Initializes the center sums and counts based off the initial centroids
 fn compute_initial_sums(oklab: &OklabCounts, centers: &mut CenterData, assignment: &[u8]) {
-	for ((color, n), &center) in oklab.pairs().zip(assignment) {
+	for (&(color, n), &center) in oklab.color_counts.iter().zip(assignment) {
 		let i = usize::from(center);
 		let nf = f64::from(n);
 		let sum = &mut centers.sum[i];
@@ -212,7 +212,7 @@ fn update_assignments<D: ColorDifference>(
 	points: &mut PointData,
 ) {
 	let k = centers.centroid.len();
-	for ((color, n), center) in oklab.pairs().zip(&mut points.assignment) {
+	for (&(color, n), center) in oklab.color_counts.iter().zip(&mut points.assignment) {
 		let ci = usize::from(*center);
 		let dist = D::squared_distance(color, centers.centroid[ci]);
 
@@ -268,16 +268,15 @@ fn update_assignments<D: ColorDifference>(
 	use rayon::prelude::*;
 
 	let k = centers.centroid.len();
-	let num_points = oklab.colors().len();
+	let num_points = oklab.color_counts.len();
 	let deltas = points
 		.assignment
 		.par_iter_mut()
 		.with_min_len(num_points / rayon::current_num_threads())
-		.zip(&oklab.colors)
-		.zip(&oklab.counts)
+		.zip(&oklab.color_counts)
 		.fold_with(
 			(vec![Oklab { l: 0.0, a: 0.0, b: 0.0 }; k], vec![0; k]),
-			|(mut sums, mut counts), ((center, &color), &n)| {
+			|(mut sums, mut counts), (center, &(color, n))| {
 				let ci = usize::from(*center);
 				let dist = D::squared_distance(color, centers.centroid[ci]);
 
@@ -384,7 +383,7 @@ fn kmeans<D: ColorDifference>(
 	seed: u64,
 ) -> KmeansResult {
 	let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(seed);
-	kmeans_plus_plus::<D>(k, &mut rng, &oklab.colors, &mut centers.centroid, &mut points.weight);
+	kmeans_plus_plus::<D>(k, &mut rng, &oklab, &mut centers.centroid, &mut points.weight);
 	compute_initial_sums(oklab, centers, &points.assignment);
 
 	let mut iterations = 0;
@@ -397,9 +396,10 @@ fn kmeans<D: ColorDifference>(
 	}
 
 	let variance = oklab
-		.pairs()
+		.color_counts
+		.iter()
 		.zip(&points.assignment)
-		.map(|((color, n), &center)| {
+		.map(|(&(color, n), &center)| {
 			f64::from(n) * f64::from(D::squared_distance(color, centers.centroid[usize::from(center)]))
 		})
 		.sum();
@@ -453,7 +453,7 @@ pub fn run(
 	seed: u64,
 ) -> KmeansResult {
 	#[allow(clippy::float_cmp)]
-	if k == 0 || oklab.colors.is_empty() {
+	if k == 0 || oklab.color_counts.is_empty() {
 		KmeansResult::empty()
 	} else if oklab.lightness_weight == 0.0 {
 		run_trials::<ChromaHueDistance>(oklab, trials, k, max_iter, convergence_threshold, seed)
@@ -533,20 +533,22 @@ mod tests {
 	}
 
 	fn test_data() -> OklabCounts {
+		let counts = vec![12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
 		OklabCounts {
-			colors: test_colors(),
-			counts: vec![12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1],
+			color_counts: test_colors().into_iter().zip(counts).collect(),
 			lightness_weight: 1.0,
 		}
 	}
 
 	fn kmeans_plus_plus_num_centroids(k: u8, n: u32) {
 		let mut state = KmeansState::new(k, n);
+		let mut oklab_counts = test_data();
+		oklab_counts.color_counts.truncate(n as usize);
 
 		kmeans_plus_plus::<EuclideanDistance>(
 			k,
 			&mut rand_chacha::ChaCha8Rng::seed_from_u64(0),
-			&test_colors()[..(n as usize)],
+			&oklab_counts,
 			&mut state.centers.centroid,
 			&mut state.points.weight,
 		);
@@ -595,7 +597,7 @@ mod tests {
 		kmeans_plus_plus::<EuclideanDistance>(
 			k,
 			&mut rng,
-			&data.colors,
+			&data,
 			&mut state.centers.centroid,
 			&mut state.points.weight,
 		);
@@ -621,7 +623,7 @@ mod tests {
 
 		let mut expected_sum = Oklab { l: 0.0, a: 0.0, b: 0.0 };
 		let mut expected_count = 0;
-		for (color, count) in data.pairs() {
+		for &(color, count) in &data.color_counts {
 			expected_count += count;
 			let n = f64::from(count);
 			expected_sum.l += n * f64::from(color.l);
@@ -652,7 +654,7 @@ mod tests {
 
 		update_assignments::<EuclideanDistance>(&data, &mut state.centers, &state.distances, &mut state.points);
 
-		for ((color, count), &center) in data.pairs().zip(&state.points.assignment) {
+		for (&(color, count), &center) in data.color_counts.iter().zip(&state.points.assignment) {
 			let center = usize::from(center);
 			let n = f64::from(count);
 			let sum = &mut state.centers.sum[center];
@@ -782,8 +784,8 @@ mod tests {
 		let mut data = test_data();
 		data.lightness_weight = weight;
 
-		for color in &mut data.colors {
-			color.l *= weight;
+		for color_count in &mut data.color_counts {
+			color_count.0.l *= weight;
 		}
 
 		let expected = KmeansResult {
