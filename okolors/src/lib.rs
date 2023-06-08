@@ -157,14 +157,49 @@ use palette::{IntoColor, Oklab, Srgb, Srgba, WithAlpha};
 use rayon::prelude::*;
 use std::ops::Range;
 
-mod kmeans;
+pub(crate) mod kmeans;
 pub use kmeans::KmeansResult;
+
+pub mod gpu;
+
+/// An [`Oklab`] color and a count for the number of pixels that are this color.
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct OklabN {
+	/// The lightness component for an [`Oklab`] color
+	l: f32,
+	/// The a component for an [`Oklab`] color
+	a: f32,
+	/// The b component for an [`Oklab`] color
+	b: f32,
+	/// The number of pixel that are this color
+	n: u32,
+}
+
+impl OklabN {
+	/// Create a new [`OklabN`] from an [`Oklab`] color and a `u32` count
+	fn new(oklab: Oklab, n: u32) -> Self {
+		let Oklab { l, a, b } = oklab;
+		OklabN { l, a, b, n }
+	}
+
+	/// Get the underlying [`Oklab`] color
+	fn to_lab(self) -> Oklab {
+		let OklabN { l, a, b, .. } = self;
+		Oklab { l, a, b }
+	}
+
+	/// Return the underlying [`Oklab`] color and `u32` count
+	fn to_tuple(self) -> (Oklab, u32) {
+		(self.to_lab(), self.n)
+	}
+}
 
 /// Deduplicated [`Oklab`] colors converted from [`Srgb`] colors
 #[derive(Debug, Clone)]
 pub struct OklabCounts {
 	/// [`Oklab`] colors and the corresponding number of duplicate [`Srgb`] pixels
-	pub(crate) color_counts: Vec<(Oklab, u32)>,
+	pub(crate) color_counts: Vec<OklabN>,
 	/// The value used to scale down the lightness of each color
 	pub(crate) lightness_weight: f32,
 }
@@ -173,7 +208,7 @@ impl OklabCounts {
 	/// Gets the underlying Vec of [`Oklab`] colors and each corresponding [`u32`] count that indicates the number of duplicate [`Srgb`] pixels for the color.
 	/// Each [`Oklab`] color's lightness component is scaled down according to the current `lightness_weight`.
 	#[must_use]
-	pub fn weighted_pairs(&self) -> &Vec<(Oklab, u32)> {
+	pub fn weighted_pairs(&self) -> &Vec<OklabN> {
 		&self.color_counts
 	}
 
@@ -209,8 +244,8 @@ impl OklabCounts {
 			let new_weight = if weight == 0.0 { 1.0 } else { weight };
 			let old_weight = if lightness_weight == 0.0 { 1.0 } else { lightness_weight };
 
-			for color_count in &mut self.color_counts {
-				color_count.0.l = (color_count.0.l / old_weight) * new_weight;
+			for labn in &mut self.color_counts {
+				labn.l = (labn.l / old_weight) * new_weight;
 			}
 		}
 
@@ -358,7 +393,7 @@ impl OklabCounts {
 										#[allow(clippy::cast_possible_truncation)]
 										let srgb = Srgb::new(r as u8, g as u8, b as u8);
 										let oklab: Oklab = srgb.into_format().into_color();
-										color_counts.push((oklab, count));
+										color_counts.push(OklabN::new(oklab, count));
 									}
 								}
 
@@ -608,8 +643,8 @@ mod tests {
 		assert_eq!(expected.lightness_weight, result.lightness_weight);
 
 		for (expected, color) in expected.color_counts.iter().zip(&result.color_counts) {
-			assert_relative_eq!(expected.0, color.0);
-			assert_eq!(expected.1, color.1);
+			assert_relative_eq!(expected.to_lab(), color.to_lab());
+			assert_eq!(expected.n, color.n);
 		}
 	}
 

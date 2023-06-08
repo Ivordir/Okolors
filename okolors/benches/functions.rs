@@ -5,6 +5,7 @@ use criterion::{
 use image::GenericImageView;
 use okolors::OklabCounts;
 use std::time::Duration;
+use wgpu::{Device, Queue};
 
 fn load_images() -> Vec<(String, image::DynamicImage)> {
 	std::fs::read_dir("../img")
@@ -106,6 +107,79 @@ fn kmeans(c: &mut Criterion) {
 	bench("low convergence", &mut group, &counts, 8, 0.01);
 }
 
+/// Attempts to get a gpu [`Device`] and its associated [`Queue`]
+async fn get_device() -> Option<(Device, Queue)> {
+	let instance = wgpu::Instance::default();
+
+	let adapter = instance
+		.request_adapter(&wgpu::RequestAdapterOptions::default())
+		.await?;
+
+	adapter
+		.request_device(
+			&wgpu::DeviceDescriptor {
+				label: None,
+				features: wgpu::Features::empty(),
+				limits: wgpu::Limits::downlevel_defaults(),
+			},
+			None,
+		)
+		.await
+		.ok()
+}
+
+fn kmeans_gpu(c: &mut Criterion) {
+	let (device, queue) = pollster::block_on(get_device()).unwrap();
+
+	let mut group = create_group(c, "kmeans-gpu");
+
+	let counts = load_images()
+		.into_iter()
+		.map(|(path, image)| {
+			(
+				path,
+				okolors::gpu::OklabCounts::from_image(&image, u8::MAX).with_lightness_weight(black_box(0.325)),
+			)
+		})
+		.collect::<Vec<_>>();
+
+	fn bench(
+		name: &str,
+		group: &mut BenchmarkGroup<WallTime>,
+		counts: &[(String, okolors::gpu::OklabCounts)],
+		k: u8,
+		convergence: f32,
+		device: &Device,
+		queue: &Queue,
+	) {
+		for (path, counts) in counts {
+			group.bench_with_input(BenchmarkId::new(name, path), &counts, |b, counts| {
+				b.iter(|| {
+					okolors::gpu::run(
+						counts,
+						black_box(1),
+						black_box(k),
+						black_box(convergence),
+						black_box(1024),
+						black_box(0),
+						device,
+						queue,
+					)
+				});
+			});
+		}
+	}
+
+	group.measurement_time(Duration::from_secs(2));
+	bench("default", &mut group, &counts, 8, 0.05, &device, &queue);
+	bench("low k", &mut group, &counts, 4, 0.05, &device, &queue);
+	bench("high convergence", &mut group, &counts, 8, 0.1, &device, &queue);
+
+	group.measurement_time(Duration::from_secs(4));
+	bench("high k", &mut group, &counts, 32, 0.05, &device, &queue);
+	bench("low convergence", &mut group, &counts, 8, 0.01, &device, &queue);
+}
+
 fn all_steps(c: &mut Criterion) {
 	let mut group = create_group(c, "all_steps");
 	group.measurement_time(Duration::from_secs(8));
@@ -129,5 +203,5 @@ fn all_steps(c: &mut Criterion) {
 	}
 }
 
-criterion_group!(benches, preprocessing, kmeans, all_steps);
+criterion_group!(benches, preprocessing, kmeans, all_steps, kmeans_gpu);
 criterion_main!(benches);
