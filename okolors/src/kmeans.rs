@@ -170,15 +170,40 @@ fn kmeans_plus_plus<D: ColorDifference>(
 }
 
 /// Initializes the center sums and counts based off the initial centroids
-fn compute_initial_sums(oklab: &OklabCounts, centers: &mut CenterData, assignment: &[u8]) {
-	for (&(color, n), &center) in oklab.color_counts.iter().zip(assignment) {
-		let i = usize::from(center);
+fn compute_initial_sums<D: ColorDifference>(
+	oklab: &OklabCounts,
+	centers: &mut CenterData,
+	distances: &[(u8, f32)],
+	assignment: &mut [u8],
+) {
+	let k = centers.centroid.len();
+	let first_centroid = centers.centroid[0];
+	for (&(color, n), center) in oklab.color_counts.iter().zip(assignment) {
+		let dist = D::squared_distance(color, first_centroid);
+
+		// Find the closest center
+		let mut min_dist = dist;
+		let mut min_center = *center;
+		for &(other_center, half_dist) in &distances[1..k] {
+			if dist < half_dist {
+				break;
+			}
+
+			let other_dist = D::squared_distance(color, centers.centroid[usize::from(other_center)]);
+			if other_dist < min_dist {
+				min_dist = other_dist;
+				min_center = other_center;
+			}
+		}
+
+		let cj = usize::from(min_center);
 		let nf = f64::from(n);
-		let sum = &mut centers.sum[i];
+		let sum = &mut centers.sum[cj];
 		sum.l += nf * f64::from(color.l);
 		sum.a += nf * f64::from(color.a);
 		sum.b += nf * f64::from(color.b);
-		centers.count[i] += n;
+		centers.count[cj] += n;
+		*center = min_center;
 	}
 }
 
@@ -338,7 +363,7 @@ fn update_assignments<D: ColorDifference>(
 			// so moving all points out of this center cannot give a negative value.
 			// Similarly, since the sum of the counts of all points is <= u32::MAX,
 			// then moving all points into this center cannot give a value > u32::MAX.
-			debug_assert!(u32::try_from(new_count).is_ok());
+			debug_assert!(u32::try_from(new_count).is_ok(), "{new_count}");
 			*count = new_count as u32;
 		}
 	}
@@ -383,16 +408,21 @@ fn kmeans<D: ColorDifference>(
 	seed: u64,
 ) -> KmeansResult {
 	let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(seed);
-	kmeans_plus_plus::<D>(k, &mut rng, &oklab, &mut centers.centroid, &mut points.weight);
-	compute_initial_sums(oklab, centers, &points.assignment);
+	kmeans_plus_plus::<D>(k, &mut rng, oklab, &mut centers.centroid, &mut points.weight);
 
 	let mut iterations = 0;
-	let mut total_delta = f32::INFINITY;
-	while iterations < max_iter && total_delta > convergence {
+	if max_iter > 0 {
 		update_distances::<D>(&centers.centroid, distances);
-		update_assignments::<D>(oklab, centers, distances, points);
-		total_delta = update_centroids::<D>(&mut rng, centers);
+		compute_initial_sums::<D>(oklab, centers, distances, &mut points.assignment);
+		let mut total_delta = update_centroids::<D>(&mut rng, centers);
 		iterations += 1;
+
+		while iterations < max_iter && total_delta > convergence {
+			update_distances::<D>(&centers.centroid, distances);
+			update_assignments::<D>(oklab, centers, distances, points);
+			total_delta = update_centroids::<D>(&mut rng, centers);
+			iterations += 1;
+		}
 	}
 
 	let variance = oklab
@@ -602,7 +632,16 @@ mod tests {
 			&mut state.points.weight,
 		);
 
-		compute_initial_sums(&data, &mut state.centers, &state.points.assignment);
+		update_distances::<EuclideanDistance>(&state.centers.centroid, &mut state.distances);
+
+		compute_initial_sums::<EuclideanDistance>(
+			&data,
+			&mut state.centers,
+			&state.distances,
+			&mut state.points.assignment,
+		);
+
+		update_centroids::<EuclideanDistance>(&mut rng, &mut state.centers);
 
 		(data, state, rng)
 	}
@@ -638,6 +677,7 @@ mod tests {
 	#[test]
 	fn update_assignments_preverves_sum() {
 		let (data, mut state, _) = initialize(4);
+		update_distances::<EuclideanDistance>(&state.centers.centroid, &mut state.distances);
 
 		let expected_sum = center_sum(&state.centers.sum);
 		let expected_count = state.centers.count.iter().sum::<u32>();
@@ -651,6 +691,7 @@ mod tests {
 	#[test]
 	fn update_assignments_sum_reflects_assignment() {
 		let (data, mut state, _) = initialize(4);
+		update_distances::<EuclideanDistance>(&state.centers.centroid, &mut state.distances);
 
 		update_assignments::<EuclideanDistance>(&data, &mut state.centers, &state.distances, &mut state.points);
 
@@ -679,6 +720,7 @@ mod tests {
 
 		let old_centroids = state.centers.centroid.clone();
 
+		update_distances::<EuclideanDistance>(&state.centers.centroid, &mut state.distances);
 		update_assignments::<EuclideanDistance>(&data, &mut state.centers, &state.distances, &mut state.points);
 
 		let total_delta = update_centroids::<EuclideanDistance>(&mut rng, &mut state.centers);
