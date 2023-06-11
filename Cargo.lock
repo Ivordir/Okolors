@@ -709,6 +709,7 @@ dependencies = [
  "libavif-image",
  "okolors",
  "palette",
+ "rayon",
 ]
 
 [[package]]

@@ -130,11 +130,13 @@ The binary also has a CLI flag to create a thumbnail for images over a certain s
 
 ## Binary
 
-- `threads`: enabled by default and toggles the corresponding library feature.
+- `threads`: enabled by default and toggles all other thread-related features.
 
-- `jpeg`, `png`, `gif`, and `qoi`: support for these image formats is enabled by default.
+  - `okolors_threads`: enabled by default, toggles the corresponding library feature.
 
-- `jpeg_rayon`: enabled by default, allows multiple threads for decoding jpeg images.
+  - `jpeg_rayon`: enabled by default, allows multiple threads for decoding jpeg images.
+
+- `jpeg`, `png`, `gif`, and `qoi`: support for these image formats is enabled by default through the `default_formats` feature.
 
 - `webp`: WebP support is not enabled by default, as it seems that the `image` crate still has lingering bugs for WebP in certain cases:
 [1](https://github.com/image-rs/image/issues/1873),

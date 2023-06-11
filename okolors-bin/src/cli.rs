@@ -157,6 +157,13 @@ pub struct Options {
 	#[arg(long, default_value_t = 0)]
 	pub seed: u64,
 
+	/// The number of threads to use
+	///
+	/// A value of 0 indicates to automatically choose the number of threads
+	#[cfg(any(feature = "okolors_threads", feature = "jpeg_rayon"))]
+	#[arg(short, long, default_value_t = 0)]
+	pub threads: u8,
+
 	/// Print additional information, such as the number of k-means iterations
 	#[arg(long)]
 	pub verbose: bool,

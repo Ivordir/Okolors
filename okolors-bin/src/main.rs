@@ -75,7 +75,7 @@ fn main() -> ExitCode {
 
 	let options = Options::parse();
 
-	let result = get_print_palette(&options);
+	let result = run_get_print_palette(&options);
 
 	// Returning Result<_> uses Debug printing instead of Display
 	if let Err(e) = result {
@@ -84,6 +84,23 @@ fn main() -> ExitCode {
 	} else {
 		ExitCode::SUCCESS
 	}
+}
+
+/// Builds a thread pool and then runs `get_print_palette`
+#[cfg(any(feature = "okolors_threads", feature = "jpeg_rayon"))]
+fn run_get_print_palette(options: &Options) -> Result<(), ImageLoadError> {
+	let pool = rayon::ThreadPoolBuilder::new()
+		.num_threads(usize::from(options.threads))
+		.build()
+		.expect("initialized thread pool");
+
+	pool.install(|| get_print_palette(options))
+}
+
+/// Runs `get_print_palette` on a single thread
+#[cfg(not(any(feature = "okolors_threads", feature = "jpeg_rayon")))]
+fn run_get_print_palette(options: &Options) -> Result<(), ImageLoadError> {
+	get_print_palette(options)
 }
 
 /// Load an image, generate its palette, and print the result using the given options
