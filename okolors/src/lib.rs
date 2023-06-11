@@ -105,7 +105,7 @@
 //!
 //! ## Convergence Threshold
 //!
-//! After a certain point, the centroids change so little that there is no longer a visual, percievable difference.
+//! After a certain point, the centroids change so little that there is no longer a visual, perceivable difference.
 //! This is the cutoff value used to determine whether any change is significant.
 //!
 //! 0.01 to 0.1 is the recommended range, with lower values indicating higher accuracy.
