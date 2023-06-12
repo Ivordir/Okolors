@@ -242,32 +242,43 @@ impl OklabCounts {
 		(chunks[i] as usize)..(chunks[i + 1] as usize)
 	}
 
-	// The following preprocessing step is arguably the most important section with regards to running time.
-	// This function will deduplicate the provided pixels using a partial radix sort
-	// and then finally convert the unique Srgb colors to the Oklab color space.
+	/*
+		The following preprocessing step is arguably the most important section with regards to running time.
+		This function will deduplicate the provided pixels using a partial radix sort
+		and then finally convert the unique Srgb colors to the Oklab color space.
 
-	// Why do we deduplicate?
-	// 1. The running time of each k-means iteration is O(n * k * d)
-	//    where n is the number of data points, pixels in this case.
-	//    For many images the number of unique colors is 16 to 60 times less than the number of pixels.
-	//    So, this alone already results in a massive speedup.
-	//
-	// 2. Converting from Srgb to Oklab is expensive.
-	//    Each Srgb pixel first needs to be linearized, this takes a 6 floating point operations and 3 powf() calls.
-	//    The linearized color is then converted to Oklab which takes another 36 flops and 3 cbrt() calls.
-	//    By converting only after deduplicating, this also greatly reduces the running time.
+		Why do we deduplicate?
+		1.
+			The running time of each k-means iteration is O(n * k * d)
+			where n is the number of data points, pixels in this case.
+			For many images the number of unique colors is 16 to 60 times less than the number of pixels.
+			So, this alone already results in a massive speedup.
 
-	// Why do we use a radix sort based approach opposed to, e.g., a HashMap approach?
-	// 1. It's faster -- who would've guessed!
-	//    It's hard to beat the speed of radix sort. The overhead of a HashMap is too large in this case.
+		2.
+			Converting from Srgb to Oklab is expensive.
+			Each Srgb pixel first needs to be linearized, this takes a 6 floating point operations and 3 powf() calls.
+			The linearized color is then converted to Oklab which takes another 36 flops and 3 cbrt() calls.
+			By converting only after deduplicating, this also greatly reduces the running time.
 
-	// 2. It gives a roughly 20% time reduction for the later k-means algorithm compared to the HashMap approach.
-	//    My guess is that the sorting approach will group similar colors together,
-	//    thereby decreasing the number of branch mispredictions in k-means.
-	//    Collecting a Vec from a HashMap, on the other hand, may give pixels in any random order.
+		Why do we use a radix sort based approach opposed to, e.g., a HashMap approach?
+		1.
+			It's faster -- who would've guessed!
+			It's hard to beat the speed of radix sort. The overhead of a HashMap is too large in this case.
 
-	// This radix approach may be slower for small inputs/images,
-	// but the goal is to reduce the time for large input where the difference can be most felt.
+		2.
+			It gives a roughly 20% time reduction for the later k-means algorithm compared to the HashMap approach.
+			My guess is that the sorting approach will group similar colors together,
+			thereby decreasing the number of branch mispredictions in k-means.
+			Collecting a Vec from a HashMap, on the other hand, may give pixels in any random order.
+
+		3.
+			Because of the random iteration order for HashMaps, the HashMap approach may provide different results
+			for different numbers of threads. Ultimately, this would affect the final k-means results.
+			The radix sort approach, on the other hand, will provide the same result regardless of the number of threads.
+
+		One thing to note is that the radix approach may be slower for (very?) small inputs/images,
+		but the goal is to reduce the time for large inputs where the difference can be most felt.
+	*/
 
 	/// Create an [`OklabCounts`] from a slice of [`Srgb`] colors
 	#[cfg(feature = "threads")]
