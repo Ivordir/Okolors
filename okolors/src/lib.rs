@@ -152,7 +152,7 @@
 
 use hashbrown::HashMap;
 use image::{DynamicImage, RgbImage, RgbaImage};
-use palette::{FromColor, Oklab, Srgb, Srgba, WithAlpha};
+use palette::{IntoColor, Oklab, Srgb, Srgba, WithAlpha};
 #[cfg(feature = "threads")]
 use rayon::prelude::*;
 
@@ -243,7 +243,7 @@ impl OklabCounts {
 			.into_par_iter()
 			.map(|(key, count)| {
 				let srgb = Srgb::from_u32::<Packed>(key);
-				let oklab = Oklab::<f32>::from_color(srgb.into_format());
+				let oklab: Oklab = srgb.into_format().into_color();
 				(oklab, count)
 			})
 			.collect::<Vec<_>>();
@@ -310,7 +310,7 @@ impl OklabCounts {
 	fn from_counts(counts: HashMap<u32, u32>) -> Self {
 		let color_counts = counts
 			.into_iter()
-			.map(|(key, count)| (Oklab::from_color(Srgb::from_u32::<Packed>(key).into_format()), count))
+			.map(|(key, count)| (Srgb::from_u32::<Packed>(key).into_format().into_color(), count))
 			.collect::<Vec<_>>();
 
 		OklabCounts { color_counts, lightness_weight: 1.0 }
