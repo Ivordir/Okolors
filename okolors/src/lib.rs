@@ -242,7 +242,7 @@ impl OklabCounts {
 		(chunks[i] as usize)..(chunks[i + 1] as usize)
 	}
 
-	// The following preprocesing step is arguably the most important section with regards to running time.
+	// The following preprocessing step is arguably the most important section with regards to running time.
 	// This function will deduplicate the provided pixels using a partial radix sort
 	// and then finally convert the unique Srgb colors to the Oklab color space.
 
