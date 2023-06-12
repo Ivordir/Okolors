@@ -150,17 +150,14 @@
 #![allow(clippy::enum_glob_use)]
 #![allow(clippy::unreadable_literal)]
 
-use hashbrown::HashMap;
 use image::{DynamicImage, RgbImage, RgbaImage};
 use palette::{IntoColor, Oklab, Srgb, Srgba, WithAlpha};
 #[cfg(feature = "threads")]
 use rayon::prelude::*;
+use std::ops::Range;
 
 mod kmeans;
 pub use kmeans::KmeansResult;
-
-/// The format used to convert an [`Srgb`] color into a `u32` for hashing
-type Packed = palette::rgb::channels::Rgba;
 
 /// Deduplicated [`Oklab`] colors converted from [`Srgb`] colors
 #[derive(Debug, Clone)]
@@ -228,109 +225,249 @@ impl OklabCounts {
 		self
 	}
 
-	/// Create an [`OklabCounts`] from a Vec of color counts
-	#[cfg(feature = "threads")]
-	fn from_thread_counts(mut thread_counts: Vec<HashMap<u32, u32>>) -> Self {
-		// Merge counts from each thread
-		let mut counts = thread_counts.pop().expect("one thread");
-		for other_counts in thread_counts {
-			for (key, add_count) in other_counts {
-				*counts.entry(key).or_insert(0) += add_count;
-			}
+	/// A byte-sized Radix
+	const RADIX: usize = u8::MAX as usize + 1;
+
+	/// Computes the prefix sum of an array in place
+	#[inline]
+	fn prefix_sum(counts: &mut [u32; Self::RADIX + 1]) {
+		for i in 1..Self::RADIX {
+			counts[i] += counts[i - 1];
 		}
-
-		let color_counts = counts
-			.into_par_iter()
-			.map(|(key, count)| {
-				let srgb = Srgb::from_u32::<Packed>(key);
-				let oklab: Oklab = srgb.into_format().into_color();
-				(oklab, count)
-			})
-			.collect::<Vec<_>>();
-
-		OklabCounts { color_counts, lightness_weight: 1.0 }
 	}
+
+	/// Return a [`Range`] over the `i`-th chunk by doing necessary conversions/casts
+	#[inline]
+	fn get_chunk(chunks: &[u32; Self::RADIX + 1], i: usize) -> Range<usize> {
+		(chunks[i] as usize)..(chunks[i + 1] as usize)
+	}
+
+	// The following preprocesing step is arguably the most important section with regards to running time.
+	// This function will deduplicate the provided pixels using a partial radix sort
+	// and then finally convert the unique Srgb colors to the Oklab color space.
+
+	// Why do we deduplicate?
+	// 1. The running time of each k-means iteration is O(n * k * d)
+	//    where n is the number of data points, pixels in this case.
+	//    For many images the number of unique colors is 16 to 60 times less than the number of pixels.
+	//    So, this alone already results in a massive speedup.
+	//
+	// 2. Converting from Srgb to Oklab is expensive.
+	//    Each Srgb pixel first needs to be linearized, this takes a 6 floating point operations and 3 powf() calls.
+	//    The linearized color is then converted to Oklab which takes another 36 flops and 3 cbrt() calls.
+	//    By converting only after deduplicating, this also greatly reduces the running time.
+
+	// Why do we use a radix sort based approach opposed to, e.g., a HashMap approach?
+	// 1. It's faster -- who would've guessed!
+	//    It's hard to beat the speed of radix sort. The overhead of a HashMap is too large in this case.
+
+	// 2. It gives a roughly 20% time reduction for the later k-means algorithm compared to the HashMap approach.
+	//    My guess is that the sorting approach will group similar colors together,
+	//    thereby decreasing the number of branch mispredictions in k-means.
+	//    Collecting a Vec from a HashMap, on the other hand, may give pixels in any random order.
+
+	// This radix approach may be slower for small inputs/images,
+	// but the goal is to reduce the time for large input where the difference can be most felt.
 
 	/// Create an [`OklabCounts`] from a slice of [`Srgb`] colors
 	#[cfg(feature = "threads")]
 	#[must_use]
 	pub fn from_srgb(pixels: &[Srgb<u8>]) -> Self {
-		// Converting from Srgb to Oklab is expensive, so let's group identical pixels.
-		// This will also have the effect of speeding up k-means, since there will be less data points.
+		if pixels.is_empty() {
+			OklabCounts {
+				color_counts: Vec::new(),
+				lightness_weight: 1.0,
+			}
+		} else {
+			let mut green_blue = vec![(0, 0); pixels.len()];
 
-		// We use hashbrown::HashMap instead of std::collections::HashMap, since:
-		// - AHash is faster than SipHash (we do not need the DDoS protection)
-		// - the standard HashMap uses thead-local random state which causes non-deterministic output with rayon,
-		//   so we would have to sort the final colors/counts to restore determinism.
-		let thread_counts = pixels
-			.par_iter()
-			// setting min_len reduces the number of intermediate HashMaps (needed to be merged at the end, etc.)
-			.with_min_len(pixels.len() / rayon::current_num_threads())
-			.fold(HashMap::new, |mut counts, srgb| {
-				let key = srgb.into_u32::<Packed>();
-				*counts.entry(key).or_insert(0) += 1_u32;
-				counts
-			})
-			.collect::<Vec<_>>();
+			let mut red_prefix = [0; Self::RADIX + 1];
 
-		Self::from_thread_counts(thread_counts)
+			// Excuse the manual unrolling below...
+
+			for rgb in pixels {
+				red_prefix[usize::from(rgb.red)] += 1;
+			}
+
+			Self::prefix_sum(&mut red_prefix);
+
+			for rgb in pixels {
+				let r = usize::from(rgb.red);
+				let i = red_prefix[r] - 1;
+				green_blue[i as usize] = (rgb.green, rgb.blue);
+				red_prefix[r] = i;
+			}
+			#[allow(clippy::cast_possible_truncation)]
+			let n = pixels.len() as u32;
+			red_prefix[Self::RADIX] = n;
+
+			let color_counts = (0..Self::RADIX)
+				.into_par_iter()
+				.flat_map(|r| {
+					let chunk = Self::get_chunk(&red_prefix, r);
+
+					let mut color_counts = Vec::new();
+
+					if !chunk.is_empty() {
+						let mut green_prefix = [0; Self::RADIX + 1];
+						let mut blue_counts = [0; Self::RADIX];
+						let mut blue = vec![0; chunk.len()];
+
+						for &(green, _) in &green_blue[chunk.clone()] {
+							green_prefix[usize::from(green)] += 1;
+						}
+
+						Self::prefix_sum(&mut green_prefix);
+
+						for &(g, b) in &green_blue[chunk.clone()] {
+							let g = usize::from(g);
+							let i = green_prefix[g] - 1;
+							blue[i as usize] = b;
+							green_prefix[g] = i;
+						}
+						#[allow(clippy::cast_possible_truncation)]
+						let chunk_len = chunk.len() as u32;
+						green_prefix[Self::RADIX] = chunk_len;
+
+						for g in 0..Self::RADIX {
+							let chunk = Self::get_chunk(&green_prefix, g);
+
+							if !chunk.is_empty() {
+								for &b in &blue[chunk] {
+									blue_counts[usize::from(b)] += 1;
+								}
+
+								for (b, &count) in blue_counts.iter().enumerate() {
+									if count > 0 {
+										#[allow(clippy::cast_possible_truncation)]
+										let srgb = Srgb::new(r as u8, g as u8, b as u8);
+										let oklab: Oklab = srgb.into_format().into_color();
+										color_counts.push((oklab, count));
+									}
+								}
+
+								blue_counts = [0; Self::RADIX];
+							}
+						}
+					}
+
+					color_counts
+				})
+				.collect::<Vec<_>>();
+
+			OklabCounts { color_counts, lightness_weight: 1.0 }
+		}
 	}
 
-	/// Create an [`OklabCounts`] from a slice of [`Srgba`] colors
-	///
-	/// Colors with an alpha value less than `alpha_threshold` are excluded from the resulting [`OklabCounts`].
-	#[cfg(feature = "threads")]
+	/// Create an [`OklabCounts`] from a slice of [`Srgb`] colors
+	#[cfg(not(feature = "threads"))]
 	#[must_use]
-	pub fn from_srgba(pixels: &[Srgba<u8>], alpha_threshold: u8) -> Self {
-		// Converting from Srgb to Oklab is expensive, so let's group identical pixels.
-		// This will also have the effect of speeding up k-means, since there will be less data points.
+	pub fn from_srgb(pixels: &[Srgb<u8>]) -> Self {
+		if pixels.is_empty() {
+			OklabCounts {
+				color_counts: Vec::new(),
+				lightness_weight: 1.0,
+			}
+		} else {
+			/// A byte-sized Radix
+			const RADIX: usize = u8::MAX as usize + 1;
 
-		// We use hashbrown::HashMap instead of std::collections::HashMap, since:
-		// - AHash is faster than SipHash (we do not need the DDoS protection)
-		// - the standard HashMap uses thead-local random state which causes non-deterministic output with rayon,
-		//   so we would have to sort the final colors/counts to restore determinism.
-		let thread_counts = pixels
-			.par_iter()
-			// setting min_len reduces the number of intermediate HashMaps (needed to be merged at the end, etc.)
-			.with_min_len(pixels.len() / rayon::current_num_threads())
-			.fold(HashMap::new, |mut counts, srgb| {
-				if srgb.alpha >= alpha_threshold {
-					let key = srgb.with_alpha(0).into_u32::<Packed>();
-					*counts.entry(key).or_insert(0) += 1_u32;
+			let mut color_counts = Vec::new();
+
+			let mut green_blue = vec![(0, 0); pixels.len()];
+			let mut blue = Vec::new();
+
+			let mut red_prefix = [0; RADIX + 1];
+			let mut green_prefix = [0; RADIX + 1];
+			let mut blue_counts = [0; RADIX];
+
+			// Excuse the manual unrolling below...
+
+			for rgb in pixels {
+				red_prefix[usize::from(rgb.red)] += 1;
+			}
+
+			Self::prefix_sum(&mut red_prefix);
+
+			for rgb in pixels {
+				let r = usize::from(rgb.red);
+				let i = red_prefix[r] - 1;
+				green_blue[i as usize] = (rgb.green, rgb.blue);
+				red_prefix[r] = i;
+			}
+			#[allow(clippy::cast_possible_truncation)]
+			let n = pixels.len() as u32;
+			red_prefix[Self::RADIX] = n;
+
+			for r in 0..RADIX {
+				let chunk = Self::get_chunk(&red_prefix, r);
+
+				if !chunk.is_empty() {
+					blue.resize(chunk.len(), 0);
+
+					for &(green, _) in &green_blue[chunk.clone()] {
+						green_prefix[usize::from(green)] += 1;
+					}
+
+					Self::prefix_sum(&mut green_prefix);
+
+					for &(g, b) in &green_blue[chunk.clone()] {
+						let g = usize::from(g);
+						let i = green_prefix[g] - 1;
+						blue[i as usize] = b;
+						green_prefix[g] = i;
+					}
+					#[allow(clippy::cast_possible_truncation)]
+					let chunk_len = chunk.len() as u32;
+					green_prefix[Self::RADIX] = chunk_len;
+
+					for g in 0..RADIX {
+						let chunk = Self::get_chunk(&green_prefix, g);
+
+						if !chunk.is_empty() {
+							for &b in &blue[chunk] {
+								blue_counts[usize::from(b)] += 1;
+							}
+
+							for (b, &count) in blue_counts.iter().enumerate() {
+								if count > 0 {
+									#[allow(clippy::cast_possible_truncation)]
+									let srgb = Srgb::new(r as u8, g as u8, b as u8);
+									let oklab: Oklab = srgb.into_format().into_color();
+									color_counts.push((oklab, count));
+								}
+							}
+
+							blue_counts = [0; RADIX];
+						}
+					}
+
+					green_prefix = [0; RADIX + 1];
 				}
-				counts
-			})
-			.collect::<Vec<_>>();
+			}
 
-		Self::from_thread_counts(thread_counts)
-	}
-
-	/// Create an [`OklabCounts`] from color counts
-	#[cfg(not(feature = "threads"))]
-	fn from_counts(counts: HashMap<u32, u32>) -> Self {
-		let color_counts = counts
-			.into_iter()
-			.map(|(key, count)| (Srgb::from_u32::<Packed>(key).into_format().into_color(), count))
-			.collect::<Vec<_>>();
-
-		OklabCounts { color_counts, lightness_weight: 1.0 }
-	}
-
-	/// Create an [`OklabCounts`] from a slice of [`Srgb`] colors
-	#[cfg(not(feature = "threads"))]
-	#[must_use]
-	pub fn from_srgb(pixels: &[Srgb<u8>]) -> Self {
-		// Converting from Srgb to Oklab is expensive, so let's group identical pixels.
-		// This will also have the effect of speeding up k-means, since there will be less data points.
-
-		// Packed Srgb -> count
-		let mut counts: HashMap<u32, u32> = HashMap::new();
-		for srgb in pixels {
-			let key = srgb.into_u32::<Packed>();
-			*counts.entry(key).or_insert(0) += 1;
+			OklabCounts { color_counts, lightness_weight: 1.0 }
 		}
+	}
 
-		Self::from_counts(counts)
+	/// Create an [`OklabCounts`] from a slice of [`Srgba`] colors
+	///
+	/// Colors with an alpha value less than `alpha_threshold` are excluded from the resulting [`OklabCounts`].
+	#[cfg(feature = "threads")]
+	#[must_use]
+	pub fn from_srgba(pixels: &[Srgba<u8>], alpha_threshold: u8) -> Self {
+		Self::from_srgb(
+			&pixels
+				.par_iter()
+				.filter_map(|c| {
+					if c.alpha >= alpha_threshold {
+						Some(c.without_alpha())
+					} else {
+						None
+					}
+				})
+				.collect::<Vec<_>>(),
+		)
 	}
 
 	/// Create an [`OklabCounts`] from a slice of [`Srgba`] colors
@@ -339,19 +476,18 @@ impl OklabCounts {
 	#[cfg(not(feature = "threads"))]
 	#[must_use]
 	pub fn from_srgba(pixels: &[Srgba<u8>], alpha_threshold: u8) -> Self {
-		// Converting from Srgb to Oklab is expensive, so let's group identical pixels.
-		// This will also have the effect of speeding up k-means, since there will be less data points.
-
-		// Packed Srgb -> count
-		let mut counts: HashMap<u32, u32> = HashMap::new();
-		for srgb in pixels {
-			if srgb.alpha >= alpha_threshold {
-				let key = srgb.with_alpha(0).into_u32::<Packed>();
-				*counts.entry(key).or_insert(0) += 1;
-			}
-		}
-
-		Self::from_counts(counts)
+		Self::from_srgb(
+			&pixels
+				.iter()
+				.filter_map(|c| {
+					if c.alpha >= alpha_threshold {
+						Some(c.without_alpha())
+					} else {
+						None
+					}
+				})
+				.collect::<Vec<_>>(),
+		)
 	}
 
 	/// Create an [`OklabCounts`] from an `RgbImage`
