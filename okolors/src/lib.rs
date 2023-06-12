@@ -150,7 +150,7 @@
 #![allow(clippy::enum_glob_use)]
 #![allow(clippy::unreadable_literal)]
 
-use image::{DynamicImage, RgbImage, RgbaImage};
+use image::{buffer::ConvertBuffer, DynamicImage, RgbImage, RgbaImage};
 use palette::{IntoColor, Oklab, Srgb, Srgba, WithAlpha};
 #[cfg(feature = "threads")]
 use rayon::prelude::*;
@@ -501,7 +501,11 @@ impl OklabCounts {
 	/// Pixels with an alpha value less than `alpha_threshold` are excluded from the resulting [`OklabCounts`].
 	#[must_use]
 	pub fn from_rgbaimage(image: &RgbaImage, alpha_threshold: u8) -> Self {
-		Self::from_srgba(palette::cast::from_component_slice(image.as_raw()), alpha_threshold)
+		if alpha_threshold == 0 {
+			Self::from_rgbimage(&image.convert())
+		} else {
+			Self::from_srgba(palette::cast::from_component_slice(image.as_raw()), alpha_threshold)
+		}
 	}
 
 	/// Create an [`OklabCounts`] from an `DynamicImage`
@@ -516,9 +520,17 @@ impl OklabCounts {
 				Self::from_rgbimage(&image.to_rgb8())
 			},
 
+			&ImageLumaA8(_) | &ImageLumaA16(_) | &ImageRgba8(_) | &ImageRgba16(_) | &ImageRgba32F(_)
+				if alpha_threshold == 0 =>
+			{
+				Self::from_rgbimage(&image.to_rgb8())
+			},
+
 			&ImageLumaA8(_) | &ImageLumaA16(_) | &ImageRgba8(_) | &ImageRgba16(_) | &ImageRgba32F(_) => {
 				Self::from_rgbaimage(&image.to_rgba8(), alpha_threshold)
 			},
+
+			_ if alpha_threshold == 0 => Self::from_rgbimage(&image.to_rgb8()),
 
 			_ => Self::from_rgbaimage(&image.to_rgba8(), alpha_threshold),
 		}
