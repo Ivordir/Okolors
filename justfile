@@ -1,8 +1,8 @@
 build-time:
   cargo build --bin okolors --features time --profile bench
 
-bench-func func:
-  cargo bench --bench functions -- {{func}}
+bench-func func *args:
+  cargo bench --bench functions -- {{func}} {{args}}
 
 experiment-param param:
   cargo run --release --example parameters -- {{param}}
