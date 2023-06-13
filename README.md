@@ -33,7 +33,7 @@ Running Okolors for this image with the default options gives the following sRGB
 
 ```bash
 > okolors 'img/Jewel Changi.jpg'
-020606 08373E E2E4E7 4F8091 4E2F26 CA835A 926F97 BB7B7B
+020707 0A3F48 E8E8E9 32221D 92ADBE CE8971 7C678D 814B3F
 ```
 
 If your terminal supports true color,
@@ -62,10 +62,10 @@ Let's get these colors in additional lightness levels using `-l`.
 ![](docs/swatch3.svg)
 
 If we're providing our own lightness levels, maybe we want to cluster the colors by hue and saturation only.
-Let's set the lightness weight to `0.01` using `-w`.
+Let's set the lightness weight to `0` using `-w`.
 
 ```bash
-> okolors 'img/Jewel Changi.jpg' -w 0.01 -l 10,30,50,70 -n 3 -e 0.01 -o swatch
+> okolors 'img/Jewel Changi.jpg' -w 0 -l 10,30,50,70 -n 3 -e 0.01 -o swatch
 ```
 
 ![](docs/swatch4.svg)
@@ -76,7 +76,7 @@ So, use this at your own discretion!
 If some of the colors still seem quite similar, then you can reduce/set the number of colors through `-k`.
 
 ```bash
-> okolors 'img/Jewel Changi.jpg' -k 7 -w 0.01 -l 10,30,50,70 -n 3 -e 0.01 -o swatch
+> okolors 'img/Jewel Changi.jpg' -k 7 -w 0 -l 10,30,50,70 -n 3 -e 0.01 -o swatch
 ```
 
 ![](docs/swatch5.svg)
@@ -86,7 +86,7 @@ Note that the CLI flags translate one-to-one with the library parameters, if the
 
 ## Images
 
-The flags `-n 3 -e 0.01 -l 10,30,50,70 -s l` were used for the additional examples below.
+The flags `-n 4 -e 0.01 -l 10,30,50,70 -s l` were used for the additional examples below.
 
 ![](docs/Lake%20Mendota.jpg)
 
