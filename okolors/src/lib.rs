@@ -25,7 +25,7 @@
 //! // use image::GenericImageView;
 //! // let img = img.thumbnail(width, height);
 //!
-//! let oklab = okolors::OklabCounts::from_image(&img, u8::MAX);
+//! let oklab = okolors::OklabCounts::try_from_image(&img, u8::MAX).expect("non-gigantic image");
 //! let result = okolors::run(&oklab, 1, 5, 0.05, 64, 0);
 //! #
 //! # Ok(())
@@ -40,7 +40,8 @@
 //! # fn main() -> Result<(), image::ImageError> {
 //! let img = image::open("some image")?;
 //!
-//! let mut oklab = okolors::OklabCounts::from_image(&img, u8::MAX)
+//! let mut oklab = okolors::OklabCounts::try_from_image(&img, u8::MAX)
+//!     .expect("non-gigantic image")
 //!     .with_lightness_weight(0.325);
 //!
 //! let resultA = okolors::run(&oklab, 1, 5, 0.05, 64, 0);
@@ -281,15 +282,20 @@ impl OklabCounts {
 	*/
 
 	/// Create an [`OklabCounts`] from a slice of [`Srgb`] colors
+	///
+	/// # Errors
+	/// An `Error` is returned if the length of `pixels` is greater than `u32::MAX`.
+	/// Otherwise, the result can be safely unwrapped.
 	#[cfg(feature = "threads")]
-	#[must_use]
-	pub fn from_srgb(pixels: &[Srgb<u8>]) -> Self {
+	pub fn try_from_srgb(pixels: &[Srgb<u8>]) -> Result<Self, std::num::TryFromIntError> {
 		if pixels.is_empty() {
-			OklabCounts {
+			Ok(OklabCounts {
 				color_counts: Vec::new(),
 				lightness_weight: 1.0,
-			}
+			})
 		} else {
+			let n = u32::try_from(pixels.len())?;
+
 			let mut green_blue = vec![(0, 0); pixels.len()];
 
 			let mut red_prefix = [0; Self::RADIX + 1];
@@ -308,8 +314,6 @@ impl OklabCounts {
 				green_blue[i as usize] = (rgb.green, rgb.blue);
 				red_prefix[r] = i;
 			}
-			#[allow(clippy::cast_possible_truncation)]
-			let n = pixels.len() as u32;
 			red_prefix[Self::RADIX] = n;
 
 			let color_counts = (0..Self::RADIX)
@@ -320,6 +324,9 @@ impl OklabCounts {
 					let mut color_counts = Vec::new();
 
 					if !chunk.is_empty() {
+						#[allow(clippy::cast_possible_truncation)]
+						let chunk_len = chunk.len() as u32;
+
 						let mut green_prefix = [0; Self::RADIX + 1];
 						let mut blue_counts = [0; Self::RADIX];
 						let mut blue = vec![0; chunk.len()];
@@ -330,14 +337,12 @@ impl OklabCounts {
 
 						Self::prefix_sum(&mut green_prefix);
 
-						for &(g, b) in &green_blue[chunk.clone()] {
+						for &(g, b) in &green_blue[chunk] {
 							let g = usize::from(g);
 							let i = green_prefix[g] - 1;
 							blue[i as usize] = b;
 							green_prefix[g] = i;
 						}
-						#[allow(clippy::cast_possible_truncation)]
-						let chunk_len = chunk.len() as u32;
 						green_prefix[Self::RADIX] = chunk_len;
 
 						for g in 0..Self::RADIX {
@@ -366,31 +371,33 @@ impl OklabCounts {
 				})
 				.collect::<Vec<_>>();
 
-			OklabCounts { color_counts, lightness_weight: 1.0 }
+			Ok(OklabCounts { color_counts, lightness_weight: 1.0 })
 		}
 	}
 
 	/// Create an [`OklabCounts`] from a slice of [`Srgb`] colors
+	///
+	/// # Errors
+	/// An `Error` is returned if the length of `pixels` is greater than `u32::MAX`.
+	/// Otherwise, the result can be safely unwrapped.
 	#[cfg(not(feature = "threads"))]
-	#[must_use]
-	pub fn from_srgb(pixels: &[Srgb<u8>]) -> Self {
+	pub fn try_from_srgb(pixels: &[Srgb<u8>]) -> Result<Self, std::num::TryFromIntError> {
 		if pixels.is_empty() {
-			OklabCounts {
+			Ok(OklabCounts {
 				color_counts: Vec::new(),
 				lightness_weight: 1.0,
-			}
+			})
 		} else {
-			/// A byte-sized Radix
-			const RADIX: usize = u8::MAX as usize + 1;
+			let n = u32::try_from(pixels.len())?;
 
 			let mut color_counts = Vec::new();
 
 			let mut green_blue = vec![(0, 0); pixels.len()];
 			let mut blue = Vec::new();
 
-			let mut red_prefix = [0; RADIX + 1];
-			let mut green_prefix = [0; RADIX + 1];
-			let mut blue_counts = [0; RADIX];
+			let mut red_prefix = [0; Self::RADIX + 1];
+			let mut green_prefix = [0; Self::RADIX + 1];
+			let mut blue_counts = [0; Self::RADIX];
 
 			// Excuse the manual unrolling below...
 
@@ -406,11 +413,9 @@ impl OklabCounts {
 				green_blue[i as usize] = (rgb.green, rgb.blue);
 				red_prefix[r] = i;
 			}
-			#[allow(clippy::cast_possible_truncation)]
-			let n = pixels.len() as u32;
 			red_prefix[Self::RADIX] = n;
 
-			for r in 0..RADIX {
+			for r in 0..Self::RADIX {
 				let chunk = Self::get_chunk(&red_prefix, r);
 
 				if !chunk.is_empty() {
@@ -432,7 +437,7 @@ impl OklabCounts {
 					let chunk_len = chunk.len() as u32;
 					green_prefix[Self::RADIX] = chunk_len;
 
-					for g in 0..RADIX {
+					for g in 0..Self::RADIX {
 						let chunk = Self::get_chunk(&green_prefix, g);
 
 						if !chunk.is_empty() {
@@ -449,25 +454,28 @@ impl OklabCounts {
 								}
 							}
 
-							blue_counts = [0; RADIX];
+							blue_counts = [0; Self::RADIX];
 						}
 					}
 
-					green_prefix = [0; RADIX + 1];
+					green_prefix = [0; Self::RADIX + 1];
 				}
 			}
 
-			OklabCounts { color_counts, lightness_weight: 1.0 }
+			Ok(OklabCounts { color_counts, lightness_weight: 1.0 })
 		}
 	}
 
 	/// Create an [`OklabCounts`] from a slice of [`Srgba`] colors
 	///
 	/// Colors with an alpha value less than `alpha_threshold` are excluded from the resulting [`OklabCounts`].
+	///
+	/// # Errors
+	/// An `Error` is returned if the length of `pixels` is greater than `u32::MAX`.
+	/// Otherwise, the result can be safely unwrapped.
 	#[cfg(feature = "threads")]
-	#[must_use]
-	pub fn from_srgba(pixels: &[Srgba<u8>], alpha_threshold: u8) -> Self {
-		Self::from_srgb(
+	pub fn try_from_srgba(pixels: &[Srgba<u8>], alpha_threshold: u8) -> Result<Self, std::num::TryFromIntError> {
+		Self::try_from_srgb(
 			&pixels
 				.par_iter()
 				.filter_map(|c| {
@@ -484,10 +492,13 @@ impl OklabCounts {
 	/// Create an [`OklabCounts`] from a slice of [`Srgba`] colors
 	///
 	/// Colors with an alpha value less than `alpha_threshold` are excluded from the resulting [`OklabCounts`].
+	///
+	/// # Errors
+	/// An `Error` is returned if the length of `pixels` is greater than `u32::MAX`.
+	/// Otherwise, the result can be safely unwrapped.
 	#[cfg(not(feature = "threads"))]
-	#[must_use]
-	pub fn from_srgba(pixels: &[Srgba<u8>], alpha_threshold: u8) -> Self {
-		Self::from_srgb(
+	pub fn try_from_srgba(pixels: &[Srgba<u8>], alpha_threshold: u8) -> Result<Self, std::num::TryFromIntError> {
+		Self::try_from_srgb(
 			&pixels
 				.iter()
 				.filter_map(|c| {
@@ -502,20 +513,26 @@ impl OklabCounts {
 	}
 
 	/// Create an [`OklabCounts`] from an `RgbImage`
-	#[must_use]
-	pub fn from_rgbimage(image: &RgbImage) -> Self {
-		Self::from_srgb(palette::cast::from_component_slice(image.as_raw()))
+	///
+	/// # Errors
+	/// An `Error` is returned if the number of pixels in `image` is greater than `u32::MAX`.
+	/// Otherwise, the result can be safely unwrapped.
+	pub fn try_from_rgbimage(image: &RgbImage) -> Result<Self, std::num::TryFromIntError> {
+		Self::try_from_srgb(palette::cast::from_component_slice(image.as_raw()))
 	}
 
 	/// Create an [`OklabCounts`] from an `RgbaImage`
 	///
 	/// Pixels with an alpha value less than `alpha_threshold` are excluded from the resulting [`OklabCounts`].
-	#[must_use]
-	pub fn from_rgbaimage(image: &RgbaImage, alpha_threshold: u8) -> Self {
+	///
+	/// # Errors
+	/// An `Error` is returned if the number of pixels in `image` is greater than `u32::MAX`.
+	/// Otherwise, the result can be safely unwrapped.
+	pub fn try_from_rgbaimage(image: &RgbaImage, alpha_threshold: u8) -> Result<Self, std::num::TryFromIntError> {
 		if alpha_threshold == 0 {
-			Self::from_rgbimage(&image.convert())
+			Self::try_from_rgbimage(&image.convert())
 		} else {
-			Self::from_srgba(palette::cast::from_component_slice(image.as_raw()), alpha_threshold)
+			Self::try_from_srgba(palette::cast::from_component_slice(image.as_raw()), alpha_threshold)
 		}
 	}
 
@@ -523,27 +540,30 @@ impl OklabCounts {
 	///
 	/// Pixels with an alpha value less than `alpha_threshold` are excluded from the resulting [`OklabCounts`].
 	/// Of course, if the image does not have an alpha channel, then `alpha_threshold` is ignored.
-	#[must_use]
-	pub fn from_image(image: &DynamicImage, alpha_threshold: u8) -> Self {
+	///
+	/// # Errors
+	/// An `Error` is returned if the number of pixels in `image` is greater than `u32::MAX`.
+	/// Otherwise, the result can be safely unwrapped.
+	pub fn try_from_image(image: &DynamicImage, alpha_threshold: u8) -> Result<Self, std::num::TryFromIntError> {
 		use image::DynamicImage::*;
 		match image {
 			&ImageLuma8(_) | &ImageLuma16(_) | &ImageRgb8(_) | &ImageRgb16(_) | &ImageRgb32F(_) => {
-				Self::from_rgbimage(&image.to_rgb8())
+				Self::try_from_rgbimage(&image.to_rgb8())
 			},
 
 			&ImageLumaA8(_) | &ImageLumaA16(_) | &ImageRgba8(_) | &ImageRgba16(_) | &ImageRgba32F(_)
 				if alpha_threshold == 0 =>
 			{
-				Self::from_rgbimage(&image.to_rgb8())
+				Self::try_from_rgbimage(&image.to_rgb8())
 			},
 
 			&ImageLumaA8(_) | &ImageLumaA16(_) | &ImageRgba8(_) | &ImageRgba16(_) | &ImageRgba32F(_) => {
-				Self::from_rgbaimage(&image.to_rgba8(), alpha_threshold)
+				Self::try_from_rgbaimage(&image.to_rgba8(), alpha_threshold)
 			},
 
-			_ if alpha_threshold == 0 => Self::from_rgbimage(&image.to_rgb8()),
+			_ if alpha_threshold == 0 => Self::try_from_rgbimage(&image.to_rgb8()),
 
-			_ => Self::from_rgbaimage(&image.to_rgba8(), alpha_threshold),
+			_ => Self::try_from_rgbaimage(&image.to_rgba8(), alpha_threshold),
 		}
 	}
 }
@@ -607,7 +627,7 @@ mod tests {
 	#[test]
 	#[allow(clippy::float_cmp)]
 	fn set_lightness_weight_restores_lightness() {
-		let mut oklab = OklabCounts::from_srgb(&test_colors());
+		let mut oklab = OklabCounts::try_from_srgb(&test_colors()).expect("non-gigantic slice");
 
 		let expected = oklab.clone();
 
@@ -624,10 +644,10 @@ mod tests {
 		let matte = rgb.iter().map(|color| color.with_alpha(u8::MAX)).collect::<Vec<_>>();
 		let transparent = rgb.iter().map(|color| color.with_alpha(0_u8)).collect::<Vec<_>>();
 
-		let mut expected = OklabCounts::from_srgb(&rgb);
-		let mut matte_result_a = OklabCounts::from_srgba(&matte, u8::MAX);
-		let mut matte_result_b = OklabCounts::from_srgba(&matte, 0);
-		let mut transparent_result = OklabCounts::from_srgba(&transparent, 0);
+		let mut expected = OklabCounts::try_from_srgb(&rgb).expect("non-gigantic slice");
+		let mut matte_result_a = OklabCounts::try_from_srgba(&matte, u8::MAX).expect("non-gigantic slice");
+		let mut matte_result_b = OklabCounts::try_from_srgba(&matte, 0).expect("non-gigantic slice");
+		let mut transparent_result = OklabCounts::try_from_srgba(&transparent, 0).expect("non-gigantic slice");
 
 		// colors may be in different order due to differences in rayon's scheduling between `from_srgb` and `from_srgba`
 		expected.color_counts.sort_unstable_by(cmp_oklab_count);
@@ -647,8 +667,8 @@ mod tests {
 			.map(|color| color.with_alpha(0_u8))
 			.collect::<Vec<_>>();
 
-		let result_a = OklabCounts::from_srgba(&transparent, u8::MAX);
-		let result_b = OklabCounts::from_srgba(&transparent, 1);
+		let result_a = OklabCounts::try_from_srgba(&transparent, u8::MAX).expect("non-gigantic slice");
+		let result_b = OklabCounts::try_from_srgba(&transparent, 1).expect("non-gigantic slice");
 
 		assert_eq!(result_a.num_colors(), 0);
 		assert_eq!(result_b.num_colors(), 0);

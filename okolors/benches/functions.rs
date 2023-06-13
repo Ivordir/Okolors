@@ -48,7 +48,9 @@ fn preprocessing(c: &mut Criterion) {
 				&image,
 				|b, image| {
 					b.iter(|| {
-						OklabCounts::from_image(image, black_box(u8::MAX)).with_lightness_weight(black_box(0.325))
+						OklabCounts::try_from_image(image, black_box(u8::MAX))
+							.expect("non-gigantic image")
+							.with_lightness_weight(black_box(0.325))
 					});
 				},
 			);
@@ -64,7 +66,9 @@ fn kmeans(c: &mut Criterion) {
 		.map(|(path, image)| {
 			(
 				path,
-				OklabCounts::from_image(&image, u8::MAX).with_lightness_weight(black_box(0.325)),
+				OklabCounts::try_from_image(&image, u8::MAX)
+					.expect("non-gigantic image")
+					.with_lightness_weight(black_box(0.325)),
 			)
 		})
 		.collect::<Vec<_>>();
@@ -111,7 +115,8 @@ fn all_steps(c: &mut Criterion) {
 		group.bench_with_input(BenchmarkId::from_parameter(path), image, |b, image| {
 			b.iter(|| {
 				okolors::run(
-					&okolors::OklabCounts::from_image(image, black_box(u8::MAX))
+					&okolors::OklabCounts::try_from_image(image, black_box(u8::MAX))
+						.expect("non-gigantic image")
 						.with_lightness_weight(black_box(0.325)),
 					black_box(1),
 					black_box(8),

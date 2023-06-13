@@ -169,7 +169,8 @@ fn get_thumbnail(image: DynamicImage, max_pixels: u32, verbose: bool) -> Dynamic
 fn get_palette(image: &DynamicImage, options: &Options) -> Vec<Okhsl> {
 	let data = time!(
 		preprocessing,
-		okolors::OklabCounts::from_image(image, options.alpha_threshold)
+		okolors::OklabCounts::try_from_image(image, options.alpha_threshold)
+			.expect("less than u32::MAX pixels")
 			.with_lightness_weight(options.lightness_weight)
 	);
 

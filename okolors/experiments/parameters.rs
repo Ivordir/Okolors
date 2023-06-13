@@ -137,9 +137,9 @@ fn main() {
 	let images = load_images()
 		.iter()
 		.flat_map(|image| {
-			[(480, 270), (1920, 1080)]
-				.into_iter()
-				.map(|(width, height)| OklabCounts::from_image(&image.thumbnail(width, height), u8::MAX))
+			[(480, 270), (1920, 1080)].into_iter().map(|(width, height)| {
+				OklabCounts::try_from_image(&image.thumbnail(width, height), u8::MAX).expect("non-gigantic image")
+			})
 		})
 		.collect::<Vec<_>>();
 

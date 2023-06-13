@@ -38,7 +38,9 @@ fn main() {
 
 	let img = image::open(options.image).expect("opened image");
 
-	let oklab = OklabCounts::from_image(&img, u8::MAX).with_lightness_weight(options.lightness_weight);
+	let oklab = OklabCounts::try_from_image(&img, u8::MAX)
+		.expect("non-gigantic image")
+		.with_lightness_weight(options.lightness_weight);
 
 	let result = if options.centroid_size == 0.0 {
 		okolors::KmeansResult::empty()
