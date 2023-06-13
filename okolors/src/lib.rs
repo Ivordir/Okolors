@@ -604,18 +604,7 @@ mod tests {
 		colors
 	}
 
-	fn cmp_oklab_count((x, _): &(Oklab, u32), (y, _): &(Oklab, u32)) -> std::cmp::Ordering {
-		use std::cmp::Ordering::*;
-		match f32::total_cmp(&x.l, &y.l) {
-			Equal => match f32::total_cmp(&x.a, &y.a) {
-				Equal => f32::total_cmp(&x.b, &y.b),
-				cmp => cmp,
-			},
-			cmp => cmp,
-		}
-	}
-
-	fn assert_oklab_counts_eq(result: &OklabCounts, expected: &OklabCounts) {
+	fn assert_oklab_counts_eq(expected: &OklabCounts, result: &OklabCounts) {
 		assert_eq!(expected.lightness_weight, result.lightness_weight);
 
 		for (expected, color) in expected.color_counts.iter().zip(&result.color_counts) {
@@ -644,16 +633,10 @@ mod tests {
 		let matte = rgb.iter().map(|color| color.with_alpha(u8::MAX)).collect::<Vec<_>>();
 		let transparent = rgb.iter().map(|color| color.with_alpha(0_u8)).collect::<Vec<_>>();
 
-		let mut expected = OklabCounts::try_from_srgb(&rgb).expect("non-gigantic slice");
-		let mut matte_result_a = OklabCounts::try_from_srgba(&matte, u8::MAX).expect("non-gigantic slice");
-		let mut matte_result_b = OklabCounts::try_from_srgba(&matte, 0).expect("non-gigantic slice");
-		let mut transparent_result = OklabCounts::try_from_srgba(&transparent, 0).expect("non-gigantic slice");
-
-		// colors may be in different order due to differences in rayon's scheduling between `from_srgb` and `from_srgba`
-		expected.color_counts.sort_unstable_by(cmp_oklab_count);
-		matte_result_a.color_counts.sort_unstable_by(cmp_oklab_count);
-		matte_result_b.color_counts.sort_unstable_by(cmp_oklab_count);
-		transparent_result.color_counts.sort_unstable_by(cmp_oklab_count);
+		let expected = OklabCounts::try_from_srgb(&rgb).expect("non-gigantic slice");
+		let matte_result_a = OklabCounts::try_from_srgba(&matte, u8::MAX).expect("non-gigantic slice");
+		let matte_result_b = OklabCounts::try_from_srgba(&matte, 0).expect("non-gigantic slice");
+		let transparent_result = OklabCounts::try_from_srgba(&transparent, 0).expect("non-gigantic slice");
 
 		assert_oklab_counts_eq(&expected, &matte_result_a);
 		assert_oklab_counts_eq(&expected, &matte_result_b);
@@ -672,5 +655,22 @@ mod tests {
 
 		assert_eq!(result_a.num_colors(), 0);
 		assert_eq!(result_b.num_colors(), 0);
+	}
+
+	#[test]
+	#[cfg(feature = "threads")]
+	fn different_num_threads_match() {
+		let rgb = test_colors();
+
+		let expected = OklabCounts::try_from_srgb(&rgb).expect("non-gigantic slice");
+
+		let pool = rayon::ThreadPoolBuilder::new()
+			.num_threads(rayon::current_num_threads() / 2)
+			.build()
+			.expect("built thread pool");
+
+		let result = pool.install(|| OklabCounts::try_from_srgb(&rgb).expect("non-gigantic slice"));
+
+		assert_oklab_counts_eq(&expected, &result);
 	}
 }
