@@ -153,8 +153,16 @@ Compiling with this feature requires cmake and nasm on the system.
 
 # References
 
-- [kmeans-colors](https://github.com/okaneco/kmeans-colors/) served as the basis for Okolors.
+- [kmeans-colors](https://github.com/okaneco/kmeans-colors/) served as the original inspiration for Okolors.
   If you want to perform other k-means related operations on images or prefer the CIELAB colorspace, then check it out!
+- The awesome [palette](https://github.com/Ogeon/palette) library is used for all color conversions.
 - The work by [Dr. Greg Hamerly and others](https://cs.baylor.edu/~hamerly/software/kmeans)
   was a very helpful resource for the k-means implementation in Okolors.
-- The awesome [palette](https://github.com/Ogeon/palette) library is used for all color conversions.
+- [Drake's Master's Thesis](https://baylor-ir.tdl.org/bitstream/handle/2104/8826/jonathan_drake_masters.pdf?sequence=1)
+  initially gave me the idea to use a sort k-means implementation.
+- Then, I independently came up with a weighted sort k-means implementation,
+  but later found the [work of Dr. M. Emre Celebi](https://arxiv.org/pdf/1011.0093.pdf)
+  who also proposes the same method! Instead of using a hash table,
+  the current implementation of Okolors used a radix sort based method.
+  I have yet to find existing work or examples that take this approach in combination with k-means.
+
