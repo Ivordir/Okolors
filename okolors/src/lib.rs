@@ -232,7 +232,7 @@ impl OklabCounts {
 	/// Computes the prefix sum of an array in place
 	#[inline]
 	fn prefix_sum(counts: &mut [u32; Self::RADIX + 1]) {
-		for i in 1..Self::RADIX {
+		for i in 1..=Self::RADIX {
 			counts[i] += counts[i - 1];
 		}
 	}
@@ -294,19 +294,47 @@ impl OklabCounts {
 				lightness_weight: 1.0,
 			})
 		} else {
-			let n = u32::try_from(pixels.len())?;
+			u32::try_from(pixels.len())?;
+
+			// for some reason in a regular iter().fold() or a par_iter().fold(),
+			// the compiler dies when trying to optimize:
+			//
+			// .fold([0; Self::RADIX + 1], |mut sums, x| {
+			//   sums[usize::from(x)] += 1;
+			//   sums
+			// })
+			//
+			// Output from Godbolt shows that the compiler:
+			// 1. Does not unroll the loop/fold
+			// 2. Calls two extra functions inside the loop body?
+			//
+			// Without the manual workaround below, the code would be literally 10 times as slow.
+			let mut red_prefix = {
+				let threads = rayon::current_num_threads();
+				let red_prefixes = pixels
+					.par_chunks((pixels.len() + threads - 1) / threads)
+					.map(|chunk| {
+						let mut prefix = [0; Self::RADIX + 1];
+						for rgb in chunk {
+							prefix[usize::from(rgb.red)] += 1;
+						}
+						Self::prefix_sum(&mut prefix);
+						prefix
+					})
+					.collect::<Vec<_>>();
+
+				let mut red_prefix = red_prefixes[0];
+				for counts in &red_prefixes[1..] {
+					for (sum, add) in red_prefix.iter_mut().zip(counts) {
+						*sum += add;
+					}
+				}
+				red_prefix
+			};
 
 			let mut green_blue = vec![(0, 0); pixels.len()];
 
-			let mut red_prefix = [0; Self::RADIX + 1];
-
 			// Excuse the manual unrolling below...
-
-			for rgb in pixels {
-				red_prefix[usize::from(rgb.red)] += 1;
-			}
-
-			Self::prefix_sum(&mut red_prefix);
 
 			for rgb in pixels {
 				let r = usize::from(rgb.red);
@@ -314,7 +342,6 @@ impl OklabCounts {
 				green_blue[i as usize] = (rgb.green, rgb.blue);
 				red_prefix[r] = i;
 			}
-			red_prefix[Self::RADIX] = n;
 
 			let color_counts = (0..Self::RADIX)
 				.into_par_iter()
@@ -324,9 +351,6 @@ impl OklabCounts {
 					let mut color_counts = Vec::new();
 
 					if !chunk.is_empty() {
-						#[allow(clippy::cast_possible_truncation)]
-						let chunk_len = chunk.len() as u32;
-
 						let mut green_prefix = [0; Self::RADIX + 1];
 						let mut blue_counts = [0; Self::RADIX];
 						let mut blue = vec![0; chunk.len()];
@@ -343,7 +367,6 @@ impl OklabCounts {
 							blue[i as usize] = b;
 							green_prefix[g] = i;
 						}
-						green_prefix[Self::RADIX] = chunk_len;
 
 						for g in 0..Self::RADIX {
 							let chunk = Self::get_chunk(&green_prefix, g);
