@@ -745,4 +745,20 @@ mod tests {
 
 		assert_oklab_counts_eq(&expected, &result);
 	}
+
+	#[test]
+	#[cfg(feature = "threads")]
+	fn different_input_permutations_match() {
+		use rand::{seq::SliceRandom, SeedableRng};
+
+		let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(0);
+		let mut rgb = test_colors();
+
+		let expected = OklabCounts::try_from_srgb(&rgb).expect("non-gigantic slice");
+
+		rgb.shuffle(&mut rng);
+		let result = OklabCounts::try_from_srgb(&rgb).expect("non-gigantic slice");
+
+		assert_oklab_counts_eq(&expected, &result);
+	}
 }
