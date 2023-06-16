@@ -169,6 +169,34 @@ pub struct OklabCounts {
 	pub(crate) lightness_weight: f32,
 }
 
+/// Unsafe utilities for sharing data across multiple threads
+#[cfg(feature = "threads")]
+#[allow(unsafe_code)]
+mod sync_unsafe {
+	use std::cell::UnsafeCell;
+
+	/// Unsafely share a mutable slice across multiple threads
+	pub struct SyncUnsafeSlice<'a, T>(UnsafeCell<&'a mut [T]>);
+
+	unsafe impl<'a, T: Send + Sync> Send for SyncUnsafeSlice<'a, T> {}
+	unsafe impl<'a, T: Send + Sync> Sync for SyncUnsafeSlice<'a, T> {}
+
+	impl<'a, T> SyncUnsafeSlice<'a, T> {
+		/// Create a new [`SyncUnsafeSlice`] with the given slice
+		pub fn new(slice: &'a mut [T]) -> Self {
+			Self(UnsafeCell::new(slice))
+		}
+
+		/// Unsafely write the given value to the given index in the slice
+		///
+		/// # Safety
+		/// It is undefined behaviour if two threads write to the same index without synchronization.
+		pub unsafe fn write(&self, index: usize, value: T) {
+			(*self.0.get())[index] = value;
+		}
+	}
+}
+
 impl OklabCounts {
 	/// Gets the underlying Vec of [`Oklab`] colors and each corresponding [`u32`] count that indicates the number of duplicate [`Srgb`] pixels for the color.
 	/// Each [`Oklab`] color's lightness component is scaled down according to the current `lightness_weight`.
@@ -226,20 +254,17 @@ impl OklabCounts {
 		self
 	}
 
-	/// A byte-sized Radix
-	const RADIX: usize = u8::MAX as usize + 1;
-
 	/// Computes the prefix sum of an array in place
 	#[inline]
-	fn prefix_sum(counts: &mut [u32; Self::RADIX + 1]) {
-		for i in 1..=Self::RADIX {
+	fn prefix_sum<const N: usize>(counts: &mut [u32; N]) {
+		for i in 1..N {
 			counts[i] += counts[i - 1];
 		}
 	}
 
 	/// Return a [`Range`] over the `i`-th chunk by doing necessary conversions/casts
 	#[inline]
-	fn get_chunk(chunks: &[u32; Self::RADIX + 1], i: usize) -> Range<usize> {
+	fn get_chunk(chunks: &[u32], i: usize) -> Range<usize> {
 		(chunks[i] as usize)..(chunks[i + 1] as usize)
 	}
 
@@ -294,12 +319,15 @@ impl OklabCounts {
 				lightness_weight: 1.0,
 			})
 		} else {
+			/// A byte-sized Radix
+			const RADIX: usize = u8::MAX as usize + 1;
+
 			u32::try_from(pixels.len())?;
 
-			// for some reason in a regular iter().fold() or a par_iter().fold(),
+			// for some reason in a par_iter().fold() or even a regular iter().fold(),
 			// the compiler dies when trying to optimize:
 			//
-			// .fold([0; Self::RADIX + 1], |mut sums, x| {
+			// .fold([0; RADIX + 1], |mut sums, x| {
 			//   sums[usize::from(x)] += 1;
 			//   sums
 			// })
@@ -308,42 +336,60 @@ impl OklabCounts {
 			// 1. Does not unroll the loop/fold
 			// 2. Calls two extra functions inside the loop body?
 			//
-			// Without the manual workaround below, the code would be literally 10 times as slow.
-			let mut red_prefix = {
-				let threads = rayon::current_num_threads();
-				let red_prefixes = pixels
-					.par_chunks((pixels.len() + threads - 1) / threads)
+			// Without the par_chunks() workaround below, the code would be literally 10 times as slow.
+			let threads = rayon::current_num_threads();
+			let chunk_size = (pixels.len() + threads - 1) / threads;
+			let mut red_prefixes = {
+				let mut red_prefixes = pixels
+					.par_chunks(chunk_size)
 					.map(|chunk| {
-						let mut prefix = [0; Self::RADIX + 1];
+						let mut counts = [0; RADIX];
 						for rgb in chunk {
-							prefix[usize::from(rgb.red)] += 1;
+							counts[usize::from(rgb.red)] += 1;
 						}
-						Self::prefix_sum(&mut prefix);
-						prefix
+						counts
 					})
 					.collect::<Vec<_>>();
 
-				let mut red_prefix = red_prefixes[0];
-				for counts in &red_prefixes[1..] {
-					for (sum, add) in red_prefix.iter_mut().zip(counts) {
-						*sum += add;
+				let mut carry = 0;
+				for i in 0..RADIX {
+					red_prefixes[0][i] += carry;
+					for j in 1..red_prefixes.len() {
+						red_prefixes[j][i] += red_prefixes[j - 1][i];
 					}
+					carry = red_prefixes[red_prefixes.len() - 1][i];
 				}
-				red_prefix
+
+				red_prefixes
+			};
+
+			let red_prefix = {
+				let mut prefix = [0; RADIX + 1];
+				prefix[1..].copy_from_slice(&red_prefixes[red_prefixes.len() - 1]);
+				prefix
 			};
 
 			let mut green_blue = vec![(0, 0); pixels.len()];
+			{
+				let green_blue = sync_unsafe::SyncUnsafeSlice::new(&mut green_blue);
 
-			// Excuse the manual unrolling below...
-
-			for rgb in pixels {
-				let r = usize::from(rgb.red);
-				let i = red_prefix[r] - 1;
-				green_blue[i as usize] = (rgb.green, rgb.blue);
-				red_prefix[r] = i;
+				// Prefix sums ensure that each location in green_blue is written to only once
+				// and is therefore safe to write to without any form of synchronization.
+				#[allow(unsafe_code)]
+				pixels
+					.par_chunks(chunk_size)
+					.zip(&mut red_prefixes)
+					.for_each(|(chunk, red_prefix)| {
+						for rgb in chunk {
+							let r = usize::from(rgb.red);
+							let i = red_prefix[r] - 1;
+							unsafe { green_blue.write(i as usize, (rgb.green, rgb.blue)) };
+							red_prefix[r] = i;
+						}
+					});
 			}
 
-			let color_counts = (0..Self::RADIX)
+			let color_counts = (0..RADIX)
 				.into_par_iter()
 				.flat_map(|r| {
 					let chunk = Self::get_chunk(&red_prefix, r);
@@ -351,8 +397,8 @@ impl OklabCounts {
 					let mut color_counts = Vec::new();
 
 					if !chunk.is_empty() {
-						let mut green_prefix = [0; Self::RADIX + 1];
-						let mut blue_counts = [0; Self::RADIX];
+						let mut green_prefix = [0; RADIX + 1];
+						let mut blue_counts = [0; RADIX];
 						let mut blue = vec![0; chunk.len()];
 
 						for &(green, _) in &green_blue[chunk.clone()] {
@@ -368,7 +414,7 @@ impl OklabCounts {
 							green_prefix[g] = i;
 						}
 
-						for g in 0..Self::RADIX {
+						for g in 0..RADIX {
 							let chunk = Self::get_chunk(&green_prefix, g);
 
 							if !chunk.is_empty() {
@@ -385,7 +431,7 @@ impl OklabCounts {
 									}
 								}
 
-								blue_counts = [0; Self::RADIX];
+								blue_counts = [0; RADIX];
 							}
 						}
 					}
@@ -411,6 +457,9 @@ impl OklabCounts {
 				lightness_weight: 1.0,
 			})
 		} else {
+			/// A byte-sized Radix
+			const RADIX: usize = u8::MAX as usize + 1;
+
 			let n = u32::try_from(pixels.len())?;
 
 			let mut color_counts = Vec::new();
@@ -418,9 +467,9 @@ impl OklabCounts {
 			let mut green_blue = vec![(0, 0); pixels.len()];
 			let mut blue = Vec::new();
 
-			let mut red_prefix = [0; Self::RADIX + 1];
-			let mut green_prefix = [0; Self::RADIX + 1];
-			let mut blue_counts = [0; Self::RADIX];
+			let mut red_prefix = [0; RADIX + 1];
+			let mut green_prefix = [0; RADIX + 1];
+			let mut blue_counts = [0; RADIX];
 
 			// Excuse the manual unrolling below...
 
@@ -436,9 +485,9 @@ impl OklabCounts {
 				green_blue[i as usize] = (rgb.green, rgb.blue);
 				red_prefix[r] = i;
 			}
-			red_prefix[Self::RADIX] = n;
+			red_prefix[RADIX] = n;
 
-			for r in 0..Self::RADIX {
+			for r in 0..RADIX {
 				let chunk = Self::get_chunk(&red_prefix, r);
 
 				if !chunk.is_empty() {
@@ -458,9 +507,9 @@ impl OklabCounts {
 					}
 					#[allow(clippy::cast_possible_truncation)]
 					let chunk_len = chunk.len() as u32;
-					green_prefix[Self::RADIX] = chunk_len;
+					green_prefix[RADIX] = chunk_len;
 
-					for g in 0..Self::RADIX {
+					for g in 0..RADIX {
 						let chunk = Self::get_chunk(&green_prefix, g);
 
 						if !chunk.is_empty() {
@@ -477,11 +526,11 @@ impl OklabCounts {
 								}
 							}
 
-							blue_counts = [0; Self::RADIX];
+							blue_counts = [0; RADIX];
 						}
 					}
 
-					green_prefix = [0; Self::RADIX + 1];
+					green_prefix = [0; RADIX + 1];
 				}
 			}
 
