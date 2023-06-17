@@ -57,6 +57,10 @@ pub struct Options {
 	#[arg(short, long, default_value = "hex")]
 	pub output: FormatOutput,
 
+	/// Perform computations on the GPU
+	#[arg(long)]
+	pub gpu: bool,
+
 	/// Color the foreground or background for each printed color
 	#[arg(short, long)]
 	pub colorize: Option<ColorizeOutput>,

@@ -19,6 +19,7 @@ use colored::Colorize;
 use image::{DynamicImage, GenericImageView};
 use palette::{FromColor, Okhsl, Srgb};
 use std::{fmt, path::PathBuf, process::ExitCode};
+use wgpu::{Device, Queue};
 
 mod cli;
 use cli::{ColorizeOutput, FormatOutput, Options, SortOutput, LIGHTNESS_SCALE};
@@ -165,6 +166,27 @@ fn get_thumbnail(image: DynamicImage, max_pixels: u32, verbose: bool) -> Dynamic
 	}
 }
 
+/// Attempts to get a gpu [`Device`] and its associated [`Queue`]
+async fn get_device() -> Option<(Device, Queue)> {
+	let instance = wgpu::Instance::default();
+
+	let adapter = instance
+		.request_adapter(&wgpu::RequestAdapterOptions::default())
+		.await?;
+
+	adapter
+		.request_device(
+			&wgpu::DeviceDescriptor {
+				label: None,
+				features: wgpu::Features::empty(),
+				limits: wgpu::Limits::downlevel_defaults(),
+			},
+			None,
+		)
+		.await
+		.ok()
+}
+
 /// Generate a palette from the given image and options
 fn get_palette(image: &DynamicImage, options: &Options) -> Vec<Okhsl> {
 	let data = time!(
@@ -178,17 +200,35 @@ fn get_palette(image: &DynamicImage, options: &Options) -> Vec<Okhsl> {
 		println!("Reduced image to {} unique colors", data.num_colors());
 	}
 
-	let kmeans = time!(
-		kmeans,
-		okolors::run(
-			&data,
-			options.trials,
-			options.k,
-			options.convergence_threshold,
-			options.max_iter,
-			options.seed,
+	let kmeans = if options.gpu {
+		let (device, queue) = pollster::block_on(get_device()).unwrap();
+
+		time!(
+			kmeans,
+			okolors::gpu::run(
+				&data,
+				options.trials,
+				options.k,
+				options.convergence_threshold,
+				options.max_iter,
+				options.seed,
+				&device,
+				&queue,
+			)
 		)
-	);
+	} else {
+		time!(
+			kmeans,
+			okolors::run(
+				&data,
+				options.trials,
+				options.k,
+				options.convergence_threshold,
+				options.max_iter,
+				options.seed,
+			)
+		)
+	};
 
 	if options.verbose {
 		println!(
