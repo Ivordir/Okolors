@@ -293,7 +293,7 @@ mod tests {
 	#[test]
 	fn thumbnail_has_at_most_max_pixels() {
 		// Use scaled down image for reduced running time
-		let img = load_img("../img/formats/Jewel Changi.jpg");
+		let img = load_img("../img/formats/img/Jewel Changi.jpg");
 		let (img_width, img_height) = img.dimensions();
 
 		assert!(img_width % 10 == 0 && img_height % 10 == 0);
@@ -322,7 +322,7 @@ mod tests {
 	}
 
 	fn test_format(ext: &str) {
-		let _img = load_img(&format!("../img/formats/Jewel Changi.{ext}"));
+		let _img = load_img(&format!("../img/formats/img/Jewel Changi.{ext}"));
 	}
 
 	#[test]
@@ -340,7 +340,7 @@ mod tests {
 	#[test]
 	#[cfg(feature = "gif")]
 	fn load_gif() {
-		let _img = load_img("../img/formats/kmeans.gif");
+		let _img = load_img("../img/formats/img/kmeans.gif");
 	}
 
 	#[test]

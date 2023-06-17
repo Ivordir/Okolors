@@ -5,19 +5,12 @@ use okolors::{KmeansResult, OklabCounts};
 use palette::Oklab;
 
 fn load_images() -> Vec<image::DynamicImage> {
-	std::fs::read_dir("img")
+	std::fs::read_dir("img/unsplash/img")
 		.expect("read img directory")
 		.collect::<Result<Vec<_>, _>>()
 		.expect("read each file")
 		.iter()
-		.filter_map(|file| {
-			let path = file.path();
-			if path.extension().map_or(false, |ext| ext == "jpg") {
-				Some(image::open(&path))
-			} else {
-				None
-			}
-		})
+		.map(|file| image::open(file.path()))
 		.collect::<Result<Vec<_>, _>>()
 		.expect("loaded each image")
 }

@@ -6,22 +6,24 @@ use image::GenericImageView;
 use okolors::OklabCounts;
 use std::time::Duration;
 
-fn load_images() -> Vec<(String, image::DynamicImage)> {
-	std::fs::read_dir("../img")
+const CQ100_DIR: &str = "../img/CQ100/img";
+const UNSPLASH_DIR: &str = "../img/unsplash/img";
+
+fn load_images(dir: &str) -> Vec<(String, image::DynamicImage)> {
+	let mut paths = std::fs::read_dir(dir)
 		.expect("read img directory")
 		.collect::<Result<Vec<_>, _>>()
 		.expect("read each file")
 		.iter()
-		.filter_map(|file| {
-			let path = file.path();
-			if path.extension().map_or(false, |ext| ext == "jpg") {
-				Some(
-					image::open(&path)
-						.map(|image| (path.file_name().unwrap().to_owned().into_string().unwrap(), image)),
-				)
-			} else {
-				None
-			}
+		.map(std::fs::DirEntry::path)
+		.collect::<Vec<_>>();
+
+	paths.sort();
+
+	paths
+		.into_iter()
+		.map(|path| {
+			image::open(&path).map(|image| (path.file_name().unwrap().to_owned().into_string().unwrap(), image))
 		})
 		.collect::<Result<Vec<_>, _>>()
 		.expect("loaded each image")
@@ -40,7 +42,7 @@ fn create_group<'a>(c: &'a mut Criterion, name: &'a str) -> BenchmarkGroup<'a, W
 fn preprocessing(c: &mut Criterion) {
 	let mut group = create_group(c, "preprocessing");
 
-	for (path, image) in load_images() {
+	for (path, image) in load_images(UNSPLASH_DIR) {
 		for (width, height) in [(480, 270), (1920, 1080), image.dimensions()] {
 			let image = image.thumbnail(width, height);
 			group.bench_with_input(
@@ -61,7 +63,7 @@ fn preprocessing(c: &mut Criterion) {
 fn kmeans(c: &mut Criterion) {
 	let mut group = create_group(c, "kmeans");
 
-	let counts = load_images()
+	let counts = load_images(UNSPLASH_DIR)
 		.into_iter()
 		.map(|(path, image)| {
 			(
@@ -106,11 +108,11 @@ fn kmeans(c: &mut Criterion) {
 	bench("low convergence", &mut group, &counts, 8, 0.01);
 }
 
-fn all_steps(c: &mut Criterion) {
-	let mut group = create_group(c, "all_steps");
+fn all_steps(name: &str, image_dir: &str, c: &mut Criterion) {
+	let mut group = create_group(c, name);
 	group.measurement_time(Duration::from_secs(8));
 
-	let images = load_images();
+	let images = load_images(image_dir);
 	for (path, image) in &images {
 		group.bench_with_input(BenchmarkId::from_parameter(path), image, |b, image| {
 			b.iter(|| {
@@ -129,5 +131,13 @@ fn all_steps(c: &mut Criterion) {
 	}
 }
 
-criterion_group!(benches, preprocessing, kmeans, all_steps);
+// fn cq100(c: &mut Criterion) {
+// 	all_steps("cq100", CQ100_DIR, c)
+// }
+
+fn unsplash(c: &mut Criterion) {
+	all_steps("unsplash", UNSPLASH_DIR, c)
+}
+
+criterion_group!(benches, preprocessing, kmeans, unsplash);
 criterion_main!(benches);
