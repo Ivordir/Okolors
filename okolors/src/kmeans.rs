@@ -818,31 +818,31 @@ mod tests {
 		let data = test_data();
 
 		let expected = KmeansResult {
-			variance: 0.22378644230775535,
+			variance: 0.14563938829815015,
 			centroids: vec![
 				Oklab {
-					l: 0.2967716,
-					a: -0.0020236254,
-					b: 0.08006425,
+					l: 0.13251413,
+					a: -0.012265232,
+					b: -0.0051606596,
+				},
+				Oklab {
+					l: 0.24704194,
+					a: 0.00046473244,
+					b: -0.01437528,
+				},
+				Oklab {
+					l: 0.29722875,
+					a: -0.002119556,
+					b: 0.08327842,
 				},
 				Oklab {
 					l: 0.24430989,
 					a: 0.108118445,
 					b: 0.036724925,
 				},
-				Oklab {
-					l: 0.15429236,
-					a: -0.010022002,
-					b: -0.0036215205,
-				},
-				Oklab {
-					l: 0.24213916,
-					a: 0.0062482953,
-					b: -0.09989107,
-				},
 			],
-			counts: vec![25, 5, 46, 2],
-			iterations: 2,
+			counts: vec![37, 12, 24, 5],
+			iterations: 3,
 		};
 
 		assert_result_eq::<EuclideanDistance>(&data, k, &expected);
@@ -854,30 +854,30 @@ mod tests {
 		let data = test_data();
 
 		let expected = KmeansResult {
-			variance: 0.0875395935800043,
+			variance: 0.050434931777999736,
 			centroids: vec![
+				Oklab {
+					l: 0.19259314,
+					a: 0.0021442638,
+					b: 0.013763567,
+				},
 				Oklab {
 					l: 0.28536618,
 					a: 0.0014207959,
 					b: 0.11500679,
 				},
 				Oklab {
-					l: 0.24213916,
-					a: 0.0062482953,
-					b: -0.09989107,
-				},
-				Oklab {
-					l: 0.1863272,
-					a: -0.009139191,
-					b: 0.0058608307,
-				},
-				Oklab {
 					l: 0.24430989,
 					a: 0.108118445,
 					b: 0.036724925,
 				},
+				Oklab {
+					l: 0.17056544,
+					a: -0.05170843,
+					b: -0.043375432,
+				},
 			],
-			counts: vec![13, 2, 58, 5],
+			counts: vec![48, 13, 5, 12],
 			iterations: 2,
 		};
 
@@ -896,31 +896,31 @@ mod tests {
 		}
 
 		let expected = KmeansResult {
-			variance: 0.10947524901712313,
+			variance: 0.09993526298785582,
 			centroids: vec![
 				Oklab {
-					l: 0.29722878,
-					a: -0.002119556,
-					b: 0.08327842,
+					l: 0.16056176,
+					a: -0.00914769,
+					b: -0.007417301,
 				},
 				Oklab {
-					l: 0.24213916,
-					a: 0.0062482953,
-					b: -0.09989107,
-				},
-				Oklab {
-					l: 0.15709038,
-					a: -0.009802838,
-					b: -0.0034822472,
+					l: 0.28536618,
+					a: 0.0014207959,
+					b: 0.11500679,
 				},
 				Oklab {
 					l: 0.24430989,
 					a: 0.108118445,
 					b: 0.036724925,
 				},
+				Oklab {
+					l: 0.31124818,
+					a: -0.0063036084,
+					b: 0.045781255,
+				},
 			],
-			counts: vec![24, 2, 47, 5],
-			iterations: 2,
+			counts: vec![49, 13, 5, 11],
+			iterations: 4,
 		};
 
 		assert_result_eq::<EuclideanDistance>(&data, k, &expected);
