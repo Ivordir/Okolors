@@ -22,6 +22,10 @@ name = "parameters"
 path = "experiments/parameters.rs"
 
 [[example]]
+name = "accuracy"
+path = "experiments/accuracy.rs"
+
+[[example]]
 name = "plot"
 path = "experiments/plot/plot.rs"
 

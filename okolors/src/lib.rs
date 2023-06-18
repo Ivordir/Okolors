@@ -65,7 +65,7 @@
 //! The [README](https://github.com/Ivordir/Okolors#readme) contains some visual examples of the effects of the parameters below.
 //!
 //! Note that if `trials = 0`, `k = 0`, or an empty slice of Srgb colors is provided,
-//! then the returned [`KmeansResult`] will have no centroids and a variance of `0.0`.
+//! then the returned [`KmeansResult`] will have no centroids and a MSE of `0.0`.
 //!
 //! ## Lightness Weight
 //!
@@ -77,12 +77,12 @@
 //! A value of `1.0` indicates no scaling and performs color difference in the [`Oklab`] color space using standard euclidean distance.
 //! Otherwise, lower weights have the effect of merging similar colors together, possibly bringing out more distinct hues.
 //! Note that for weights near `0.0`, if the image contains black and white, then they will be averaged into a shade of gray.
-//! Also, the lightness weight affects the final variance, so it does not make sense to compare two [`KmeansResult`]s using their variance
+//! Also, the lightness weight affects the final ME, so it does not make sense to compare two [`KmeansResult`]s using their MSE
 //! if the results came from different lightness weights.
 //!
 //! ## Trials
 //!
-//! This is the number of times to run k-means, taking the trial with the lowest variance.
+//! This is the number of times to run k-means, taking the trial with the lowest MSE.
 //!
 //! 1 to 3 or 1 to 5 trials is recommended, depending on how much you value accuracy.
 //!

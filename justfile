@@ -4,6 +4,9 @@ build-time:
 bench-func func *args:
   cargo bench --bench functions -- {{func}} {{args}}
 
+experiment-accuracy *args:
+  cargo run --release --example accuracy -- {{args}}
+
 experiment-param param:
   cargo run --release --example parameters -- {{param}}
 

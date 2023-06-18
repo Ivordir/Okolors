@@ -113,10 +113,11 @@ impl KmeansState {
 /// Result from running k-means
 #[derive(Debug, Clone)]
 pub struct KmeansResult {
-	/// Variance achieved by these centroids
+	/// Mean squared error (MSE) achieved by these centroids
 	///
-	/// A lower variance indicates a higher accuracy.
-	pub variance: f64,
+	/// This is the average squared distance/error each color is away from its centroid,
+	/// so a lower MSE indicates a more accurate result.
+	pub mse: f32,
 	/// Final centroid colors
 	pub centroids: Vec<Oklab>,
 	/// Number of pixels in each centroid
@@ -130,7 +131,7 @@ impl KmeansResult {
 	#[must_use]
 	pub const fn empty() -> Self {
 		Self {
-			variance: 0.0,
+			mse: 0.0,
 			centroids: Vec::new(),
 			counts: Vec::new(),
 			iterations: 0,
@@ -497,7 +498,10 @@ fn kmeans<D: ColorDifference>(
 		.map(|(&(color, n), &center)| {
 			f64::from(n) * f64::from(D::squared_distance(color, centers.centroid[usize::from(center)]))
 		})
-		.sum();
+		.sum::<f64>();
+
+	#[allow(clippy::cast_possible_truncation)]
+	let mse = (variance / f64::from(oklab.num_colors())) as f32;
 
 	let (mut centroids, counts): (Vec<_>, Vec<_>) = centers
 		.centroid
@@ -516,10 +520,10 @@ fn kmeans<D: ColorDifference>(
 	centers.reset();
 	points.reset();
 
-	KmeansResult { variance, centroids, counts, iterations }
+	KmeansResult { mse, centroids, counts, iterations }
 }
 
-/// Run multiple trials of k-means, taking the trial with the lowest variance
+/// Run multiple trials of k-means, taking the trial with the lowest MSE
 fn run_trials<D: ColorDifference>(
 	oklab: &OklabCounts,
 	trials: u32,
@@ -532,11 +536,11 @@ fn run_trials<D: ColorDifference>(
 
 	(0..trials)
 		.map(|i| kmeans::<D>(oklab, &mut state, k, max_iter, convergence, seed ^ u64::from(i)))
-		.min_by(|x, y| f64::total_cmp(&x.variance, &y.variance))
+		.min_by(|x, y| f32::total_cmp(&x.mse, &y.mse))
 		.unwrap_or(KmeansResult::empty())
 }
 
-/// Run multiple trials of k-means, taking the trial with the lowest variance
+/// Run multiple trials of k-means, taking the trial with the lowest MSE
 ///
 /// An empty result with no centroids is returned if `oklab` is empty, `trials` = 0, or `k` = 0.
 pub fn run(
@@ -804,7 +808,7 @@ mod tests {
 		let mut state = KmeansState::new(k, data.num_colors());
 		let result = kmeans::<D>(data, &mut state, k, 64, 0.01, 0);
 
-		assert_relative_eq!(result.variance, expected.variance);
+		assert_relative_eq!(result.mse, expected.mse);
 		for (&result, &expected) in result.centroids.iter().zip(&expected.centroids) {
 			assert_relative_eq!(result, expected);
 		}
@@ -818,7 +822,7 @@ mod tests {
 		let data = test_data();
 
 		let expected = KmeansResult {
-			variance: 0.14563938829815015,
+			mse: 0.012136616,
 			centroids: vec![
 				Oklab {
 					l: 0.13251413,
@@ -854,7 +858,7 @@ mod tests {
 		let data = test_data();
 
 		let expected = KmeansResult {
-			variance: 0.050434931777999736,
+			mse: 0.004202911,
 			centroids: vec![
 				Oklab {
 					l: 0.19259314,
@@ -896,7 +900,7 @@ mod tests {
 		}
 
 		let expected = KmeansResult {
-			variance: 0.09993526298785582,
+			mse: 0.008327939,
 			centroids: vec![
 				Oklab {
 					l: 0.16056176,
@@ -927,14 +931,14 @@ mod tests {
 	}
 
 	#[test]
-	fn lower_convergence_gives_lower_variance() {
+	fn lower_convergence_gives_lower_mse() {
 		let k = 2;
 		let data = test_data();
 
 		let higher = run(&data, 1, k, 0.1, 64, 0);
 		let lower = run(&data, 1, k, 0.01, 64, 0);
 
-		assert!(higher.variance > lower.variance);
+		assert!(higher.mse > lower.mse);
 	}
 
 	#[test]

@@ -192,8 +192,8 @@ fn get_palette(image: &DynamicImage, options: &Options) -> Vec<Okhsl> {
 
 	if options.verbose {
 		println!(
-			"k-means took {} iterations with a final variance of {}",
-			kmeans.iterations, kmeans.variance
+			"k-means took {} iterations with a final MSE of {}",
+			kmeans.iterations, kmeans.mse
 		);
 	}
 

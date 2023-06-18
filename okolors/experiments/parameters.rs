@@ -1,19 +1,11 @@
-use std::fmt::Display;
-
+use clap::{Parser, ValueEnum};
 use itertools::iproduct;
 use okolors::{KmeansResult, OklabCounts};
 use palette::Oklab;
+use std::fmt::Display;
 
-fn load_images() -> Vec<image::DynamicImage> {
-	std::fs::read_dir("img/unsplash/img")
-		.expect("read img directory")
-		.collect::<Result<Vec<_>, _>>()
-		.expect("read each file")
-		.iter()
-		.map(|file| image::open(file.path()))
-		.collect::<Result<Vec<_>, _>>()
-		.expect("loaded each image")
-}
+#[path = "../util/util.rs"]
+mod util;
 
 fn color_difference(a: &Oklab, b: &Oklab) -> f32 {
 	let dl = a.l - b.l;
@@ -73,7 +65,7 @@ fn print_results<P: Copy, T: Display + Copy>(
 	param_combos: impl Iterator<Item = P> + Clone,
 	run_kmeans: impl Fn(P, T) -> KmeansResult,
 ) {
-	println!("{testing_param_name}: max_iter avg_centroid_diff avg_variance_perc_diff");
+	println!("{testing_param_name}: max_iter avg_centroid_diff avg_mse_perc_diff");
 
 	let mut last_result = get_results(&param_combos, testing_params[0], &run_kmeans);
 	println!(
@@ -95,23 +87,21 @@ fn print_results<P: Copy, T: Display + Copy>(
 
 		let avg_centroid_diff = total_centroid_diff / n_combos;
 
-		let total_variance_perc_diff = last_result
+		let total_mse_perc_diff = last_result
 			.iter()
 			.zip(&result)
-			.map(|(prev, curr)| (prev.variance - curr.variance) / prev.variance)
+			.map(|(prev, curr)| (f64::from(prev.mse) - f64::from(curr.mse)) / f64::from(prev.mse))
 			.sum::<f64>();
 
-		let avg_variance_perc_diff = total_variance_perc_diff / n_combos;
+		let avg_mse_perc_diff = total_mse_perc_diff / n_combos;
 
 		let max_iter = result.iter().map(|result| result.iterations).max().unwrap();
 
-		println!("{test_param}: {max_iter} {avg_centroid_diff} {avg_variance_perc_diff}");
+		println!("{test_param}: {max_iter} {avg_centroid_diff} {avg_mse_perc_diff}");
 
 		last_result = result;
 	}
 }
-
-use clap::{Parser, ValueEnum};
 
 #[derive(Copy, Clone, ValueEnum)]
 enum Parameter {
@@ -127,9 +117,9 @@ struct Options {
 fn main() {
 	let options = Options::parse();
 
-	let images = load_images()
+	let images = util::load_image_dir(util::UNSPLASH_DIR)
 		.iter()
-		.flat_map(|image| {
+		.flat_map(|(_, image)| {
 			[(480, 270), (1920, 1080)].into_iter().map(|(width, height)| {
 				OklabCounts::try_from_image(&image.thumbnail(width, height), u8::MAX).expect("non-gigantic image")
 			})
@@ -143,7 +133,7 @@ fn main() {
 
 	match options.parameter {
 		Parameter::Trials => {
-			// The avg_centroid_diff and avg_variance_perc_diff seem to decrease exponentially as trials increase (R^2 ~= 0.93).
+			// The avg_centroid_diff and avg_mse_perc_diff seem to decrease exponentially as trials increase (R^2 ~= 0.93).
 			// 1-3 or 1-5 trials give the the most "bang for your buck", as trials past this give ever more dimishing returns.
 			print_results(
 				"trials",
