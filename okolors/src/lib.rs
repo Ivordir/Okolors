@@ -751,7 +751,7 @@ mod tests {
 	fn different_input_permutations_match() {
 		use rand::{seq::SliceRandom, SeedableRng};
 
-		let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(0);
+		let mut rng = rand_xoshiro::Xoroshiro128PlusPlus::seed_from_u64(0);
 		let mut rgb = test_colors();
 
 		let expected = OklabCounts::try_from_srgb(&rgb).expect("non-gigantic slice");

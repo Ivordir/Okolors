@@ -472,7 +472,7 @@ fn kmeans<D: ColorDifference>(
 	convergence: f32,
 	seed: u64,
 ) -> KmeansResult {
-	let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(seed);
+	let mut rng = rand_xoshiro::Xoroshiro128PlusPlus::seed_from_u64(seed);
 	kmeans_plus_plus::<D>(k, &mut rng, oklab, &mut centers.centroid, &mut points.weight);
 
 	let mut iterations = 0;
@@ -642,7 +642,7 @@ mod tests {
 
 		kmeans_plus_plus::<EuclideanDistance>(
 			k,
-			&mut rand_chacha::ChaCha8Rng::seed_from_u64(0),
+			&mut rand_xoshiro::Xoroshiro128PlusPlus::seed_from_u64(0),
 			&oklab_counts,
 			&mut state.centers.centroid,
 			&mut state.points.weight,
@@ -687,7 +687,7 @@ mod tests {
 		let data = test_data();
 		#[allow(clippy::cast_possible_truncation)]
 		let mut state = KmeansState::new(k, data.num_colors());
-		let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(0);
+		let mut rng = rand_xoshiro::Xoroshiro128PlusPlus::seed_from_u64(0);
 
 		kmeans_plus_plus::<EuclideanDistance>(
 			k,
