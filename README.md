@@ -32,7 +32,7 @@ Let's use the following photo for the examples below.
 Running Okolors for this image with the default options gives the following sRGB hex values.
 
 ```bash
-> okolors 'img/Jewel Changi.jpg'
+> okolors 'Jewel Changi.jpg'
 020707 0A3F48 E8E8E9 32221D 92ADBE CE8971 7C678D 814B3F
 ```
 
@@ -40,7 +40,7 @@ If your terminal supports true color,
 then you can use `-o swatch` to see blocks of the output colors.
 
 ```bash
-> okolors 'img/Jewel Changi.jpg' -o swatch
+> okolors 'Jewel Changi.jpg' -o swatch
 ```
 
 ![](docs/swatch1.svg)
@@ -48,7 +48,7 @@ then you can use `-o swatch` to see blocks of the output colors.
 We can increase the color accuracy by increasing the number of trials, `-n`, and lowering the convergence threshold, `-e`.
 
 ```bash
-> okolors 'img/Jewel Changi.jpg' -n 3 -e 0.01 -o swatch
+> okolors 'Jewel Changi.jpg' -n 3 -e 0.01 -o swatch
 ```
 
 ![](docs/swatch2.svg)
@@ -56,7 +56,7 @@ We can increase the color accuracy by increasing the number of trials, `-n`, and
 Let's get these colors in additional lightness levels using `-l`.
 
 ```bash
-> okolors 'img/Jewel Changi.jpg' -l 10,30,50,70 -n 3 -e 0.01 -o swatch
+> okolors 'Jewel Changi.jpg' -l 10,30,50,70 -n 3 -e 0.01 -o swatch
 ```
 
 ![](docs/swatch3.svg)
@@ -65,7 +65,7 @@ If we're providing our own lightness levels, maybe we want to cluster the colors
 Let's set the lightness weight to `0` using `-w`.
 
 ```bash
-> okolors 'img/Jewel Changi.jpg' -w 0 -l 10,30,50,70 -n 3 -e 0.01 -o swatch
+> okolors 'Jewel Changi.jpg' -w 0 -l 10,30,50,70 -n 3 -e 0.01 -o swatch
 ```
 
 ![](docs/swatch4.svg)
@@ -76,7 +76,7 @@ So, use this at your own discretion!
 If some of the colors still seem quite similar, then you can reduce/set the number of colors through `-k`.
 
 ```bash
-> okolors 'img/Jewel Changi.jpg' -k 7 -w 0 -l 10,30,50,70 -n 3 -e 0.01 -o swatch
+> okolors 'Jewel Changi.jpg' -k 7 -w 0 -l 10,30,50,70 -n 3 -e 0.01 -o swatch
 ```
 
 ![](docs/swatch5.svg)
