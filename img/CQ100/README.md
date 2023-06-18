@@ -5,6 +5,7 @@ M. E. Celebi and M. L. Perez-Delgado, “CQ100: A High-Quality Image Dataset for
 ```
 The dataset itself was retrieved from [Mendeley Data](https://data.mendeley.com/datasets/vw5ys9hfxw/3).
 The images were then converted from ppm to png using `imagemagick`'s `convert` command.
+The only other modification was to fix spelling by renaming `birthday_baloons.png` to `birthday_balloons.png`.
 
 All images are available under the [CC BY-SA 4.0 License](https://creativecommons.org/licenses/by-sa/4.0/).
 For attribution and each image's original license (either CC BY-SA, CC BY, CC0, or public domain),
