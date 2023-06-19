@@ -150,6 +150,7 @@
 #![allow(clippy::many_single_char_names)]
 #![allow(clippy::enum_glob_use)]
 #![allow(clippy::unreadable_literal)]
+#![allow(clippy::wildcard_imports)]
 
 use image::{buffer::ConvertBuffer, DynamicImage, RgbImage, RgbaImage};
 use palette::{IntoColor, Oklab, Srgb, Srgba, WithAlpha};

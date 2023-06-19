@@ -63,10 +63,8 @@ fn main() {
 			.iter()
 			.map(|&k| {
 				let mse = seeds.iter().map(|&seed| {
-					MSE_SCALE
-						* f64::from(
-							okolors::run(&oklab, options.trials, k, options.convergence, options.max_iter, seed).mse,
-						)
+					let result = okolors::run(&oklab, options.trials, k, options.convergence, options.max_iter, seed);
+					MSE_SCALE * f64::from(result.mse)
 				});
 
 				format!(

@@ -83,7 +83,7 @@ fn main() {
 
 	println!("#Centroids");
 	println!("a b l n color");
-	for &centroid in result.centroids.iter() {
+	for &centroid in &result.centroids {
 		let srgb: Srgb<u8> = Srgb::from_color(centroid).into_format();
 		println!(
 			"{} {} {} {} 0x{:X}",
