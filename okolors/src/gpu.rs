@@ -1,4 +1,8 @@
 //! Provides the implementation for k-means on the GPU
+//!
+
+// temporary
+#![allow(clippy::too_many_arguments)]
 
 use crate::{
 	kmeans::{self, ChromaHueDistance, ColorDifference, EuclideanDistance},
@@ -355,7 +359,7 @@ fn kmeans<D: ColorDifference>(
 	let mut iterations = 0;
 	let mut total_delta = f32::INFINITY;
 	while iterations < max_iter && total_delta > convergence {
-		total_delta = pollster::block_on(run_gpu::<D>(&mut gpu, centers)).unwrap();
+		total_delta = pollster::block_on(run_gpu::<D>(&mut gpu, centers));
 		iterations += 1;
 	}
 
@@ -433,6 +437,7 @@ fn run_trials<D: ColorDifference>(
 /// Run multiple trials of k-means, taking the trial with the lowest variance
 ///
 /// An empty result with no centroids is returned if `oklab` is empty, `trials` = 0, or `k` = 0.
+#[must_use]
 pub fn run(
 	oklab: &OklabCounts,
 	trials: u32,
@@ -454,7 +459,7 @@ pub fn run(
 }
 
 /// Dispatch an iteration of k-means to the GPU
-async fn run_gpu<'a, D: ColorDifference>(gpu: &mut GPUState<'a>, centers: &mut CenterData) -> Option<f32> {
+async fn run_gpu<'a, D: ColorDifference>(gpu: &mut GPUState<'a>, centers: &mut CenterData) -> f32 {
 	let mut encoder = gpu
 		.device
 		.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
@@ -497,7 +502,7 @@ async fn run_gpu<'a, D: ColorDifference>(gpu: &mut GPUState<'a>, centers: &mut C
 	gpu.queue.submit(Some(encoder.finish()));
 	let result_slice = gpu.result.slice(..);
 	let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
-	result_slice.map_async(wgpu::MapMode::Read, move |v| sender.send(v).unwrap());
+	result_slice.map_async(wgpu::MapMode::Read, move |v| sender.send(v).expect("openshot channel"));
 
 	gpu.device.poll(wgpu::Maintain::Wait);
 
@@ -508,7 +513,7 @@ async fn run_gpu<'a, D: ColorDifference>(gpu: &mut GPUState<'a>, centers: &mut C
 		drop(data);
 		gpu.result.unmap();
 
-		Some(delta)
+		delta
 	} else {
 		panic!("failed to run compute on gpu!")
 	}

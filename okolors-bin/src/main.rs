@@ -14,6 +14,8 @@
 #![allow(clippy::many_single_char_names)]
 #![allow(clippy::enum_glob_use)]
 #![allow(clippy::unreadable_literal)]
+// temporary?
+#![allow(clippy::multiple_crate_versions)]
 
 use colored::Colorize;
 use image::{DynamicImage, GenericImageView};
@@ -201,7 +203,7 @@ fn get_palette(image: &DynamicImage, options: &Options) -> Vec<Okhsl> {
 	}
 
 	let kmeans = if options.gpu {
-		let (device, queue) = pollster::block_on(get_device()).unwrap();
+		let (device, queue) = pollster::block_on(get_device()).expect("got gpu device");
 
 		time!(
 			kmeans,

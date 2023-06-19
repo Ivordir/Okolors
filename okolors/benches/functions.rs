@@ -138,7 +138,9 @@ fn kmeans_gpu(c: &mut Criterion) {
 		.map(|(path, image)| {
 			(
 				path,
-				okolors::gpu::OklabCounts::from_image(&image, u8::MAX).with_lightness_weight(black_box(0.325)),
+				okolors::OklabCounts::try_from_image(&image, u8::MAX)
+					.expect("non-gigantic image")
+					.with_lightness_weight(black_box(0.325)),
 			)
 		})
 		.collect::<Vec<_>>();
@@ -146,7 +148,7 @@ fn kmeans_gpu(c: &mut Criterion) {
 	fn bench(
 		name: &str,
 		group: &mut BenchmarkGroup<WallTime>,
-		counts: &[(String, okolors::gpu::OklabCounts)],
+		counts: &[(String, okolors::OklabCounts)],
 		k: u8,
 		convergence: f32,
 		device: &Device,

@@ -150,6 +150,8 @@
 #![allow(clippy::many_single_char_names)]
 #![allow(clippy::enum_glob_use)]
 #![allow(clippy::unreadable_literal)]
+// temporary?
+#![allow(clippy::multiple_crate_versions)]
 
 use image::{buffer::ConvertBuffer, DynamicImage, RgbImage, RgbaImage};
 use palette::{IntoColor, Oklab, Srgb, Srgba, WithAlpha};
@@ -167,13 +169,13 @@ pub mod gpu;
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct OklabN {
 	/// The lightness component for an [`Oklab`] color
-	l: f32,
+	pub l: f32,
 	/// The a component for an [`Oklab`] color
-	a: f32,
+	pub a: f32,
 	/// The b component for an [`Oklab`] color
-	b: f32,
+	pub b: f32,
 	/// The number of pixel that are this color
-	n: u32,
+	pub n: u32,
 }
 
 impl OklabN {

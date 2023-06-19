@@ -59,22 +59,23 @@ fn main() {
 
 	println!("#Colors");
 	println!("a b l n color");
-	for &(oklab, count) in oklab.weighted_pairs() {
-		if count >= options.min_count {
+	for labn in oklab.weighted_pairs() {
+		if labn.n >= options.min_count {
 			let count = if options.proportional {
-				count.ilog2() + 1 - min_size
+				labn.n.ilog2() + 1 - min_size
 			} else {
 				1
 			};
 			let size = options.point_size * count as f32;
 
 			let srgb: Srgb<u8> = Srgb::from_color(Oklab {
-				l: oklab.l / options.lightness_weight,
-				..oklab
+				l: labn.l / options.lightness_weight,
+				a: labn.a,
+				b: labn.b,
 			})
 			.into_format();
 
-			println!("{} {} {} {} 0x{:X}", oklab.a, oklab.b, oklab.l, size, srgb);
+			println!("{} {} {} {} 0x{:X}", labn.a, labn.b, labn.l, size, srgb);
 		}
 	}
 
