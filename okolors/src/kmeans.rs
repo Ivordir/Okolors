@@ -117,7 +117,7 @@ pub struct KmeansResult {
 	///
 	/// This is the average squared distance/error each color is away from its centroid,
 	/// so a lower MSE indicates a more accurate result.
-	pub mse: f32,
+	pub mse: f64,
 	/// Final centroid colors
 	pub centroids: Vec<Oklab>,
 	/// Number of pixels in each centroid
@@ -180,7 +180,7 @@ fn initialize_assignments<D: ColorDifference>(
 	centers: &mut CenterData,
 	distances: &[(u8, f32)],
 	assignment: &mut [u8],
-) {
+) -> f64 {
 	let k = centers.centroid.len();
 	let num_points = oklab.color_counts.len();
 	let first_centroid = centers.centroid[0];
@@ -190,8 +190,8 @@ fn initialize_assignments<D: ColorDifference>(
 		.with_min_len(num_points / rayon::current_num_threads())
 		.zip(&oklab.color_counts)
 		.fold_with(
-			(vec![Oklab { l: 0.0, a: 0.0, b: 0.0 }; k], vec![0; k]),
-			|(mut sums, mut counts), (center, &(color, n))| {
+			(vec![Oklab { l: 0.0, a: 0.0, b: 0.0 }; k], vec![0; k], 0.0),
+			|(mut sums, mut counts, mut variance), (center, &(color, n))| {
 				let dist = D::squared_distance(color, first_centroid);
 
 				// Find the closest center
@@ -218,12 +218,15 @@ fn initialize_assignments<D: ColorDifference>(
 				counts[cj] += n;
 				*center = min_center;
 
-				(sums, counts)
+				variance += f64::from(n) * f64::from(dist);
+
+				(sums, counts, variance)
 			},
 		)
 		.collect::<Vec<_>>();
 
-	for (delta_sums, delta_counts) in deltas {
+	let mut mse = 0.0;
+	for (delta_sums, delta_counts, variance) in deltas {
 		for (sum, delta_sum) in centers.sum.iter_mut().zip(&delta_sums) {
 			sum.l += delta_sum.l;
 			sum.a += delta_sum.a;
@@ -232,7 +235,10 @@ fn initialize_assignments<D: ColorDifference>(
 		for (count, &delta_count) in centers.count.iter_mut().zip(&delta_counts) {
 			*count += delta_count;
 		}
+		mse += variance;
 	}
+
+	mse / f64::from(oklab.num_colors())
 }
 
 /// Initializes the assigned center for each data point,
@@ -243,9 +249,11 @@ fn initialize_assignments<D: ColorDifference>(
 	centers: &mut CenterData,
 	distances: &[(u8, f32)],
 	assignment: &mut [u8],
-) {
+) -> f64 {
 	let k = centers.centroid.len();
 	let first_centroid = centers.centroid[0];
+
+	let mut mse = 0.0;
 	for (&(color, n), center) in oklab.color_counts.iter().zip(assignment) {
 		let dist = D::squared_distance(color, first_centroid);
 
@@ -271,8 +279,13 @@ fn initialize_assignments<D: ColorDifference>(
 		sum.a += nf * f64::from(color.a);
 		sum.b += nf * f64::from(color.b);
 		centers.count[cj] += n;
+
 		*center = min_center;
+
+		mse += f64::from(n) * f64::from(dist);
 	}
+
+	mse / f64::from(oklab.num_colors())
 }
 
 /// For each pair of centers, update their distances and sort each center's row by increasing distance
@@ -302,18 +315,17 @@ fn update_assignments<D: ColorDifference>(
 	oklab: &OklabCounts,
 	centers: &mut CenterData,
 	distances: &[(u8, f32)],
-	points: &mut PointData,
-) {
+	assignment: &mut [u8],
+) -> f64 {
 	let k = centers.centroid.len();
 	let num_points = oklab.color_counts.len();
-	let deltas = points
-		.assignment
+	let deltas = assignment
 		.par_iter_mut()
 		.with_min_len(num_points / rayon::current_num_threads())
 		.zip(&oklab.color_counts)
 		.fold_with(
-			(vec![Oklab { l: 0.0, a: 0.0, b: 0.0 }; k], vec![0; k]),
-			|(mut sums, mut counts), (center, &(color, n))| {
+			(vec![Oklab { l: 0.0, a: 0.0, b: 0.0 }; k], vec![0; k], 0.0),
+			|(mut sums, mut counts, mut variance), (center, &(color, n))| {
 				let ci = usize::from(*center);
 				let dist = D::squared_distance(color, centers.centroid[ci]);
 
@@ -357,12 +369,15 @@ fn update_assignments<D: ColorDifference>(
 					*center = min_center;
 				}
 
-				(sums, counts)
+				variance += f64::from(n) * f64::from(dist);
+
+				(sums, counts, variance)
 			},
 		)
 		.collect::<Vec<_>>();
 
-	for (delta_sums, delta_counts) in deltas {
+	let mut mse = 0.0;
+	for (delta_sums, delta_counts, variance) in deltas {
 		for (sum, delta_sum) in centers.sum.iter_mut().zip(&delta_sums) {
 			sum.l += delta_sum.l;
 			sum.a += delta_sum.a;
@@ -378,7 +393,10 @@ fn update_assignments<D: ColorDifference>(
 			debug_assert!(u32::try_from(new_count).is_ok(), "{new_count}");
 			*count = new_count as u32;
 		}
+		mse += variance;
 	}
+
+	mse / f64::from(oklab.num_colors())
 }
 
 /// For each data point, update its assigned center
@@ -388,8 +406,10 @@ fn update_assignments<D: ColorDifference>(
 	centers: &mut CenterData,
 	distances: &[(u8, f32)],
 	points: &mut PointData,
-) {
+) -> f64 {
 	let k = centers.centroid.len();
+
+	let mut mse = 0.0;
 	for (&(color, n), center) in oklab.color_counts.iter().zip(&mut points.assignment) {
 		let ci = usize::from(*center);
 		let dist = D::squared_distance(color, centers.centroid[ci]);
@@ -432,7 +452,10 @@ fn update_assignments<D: ColorDifference>(
 
 			*center = min_center;
 		}
+
+		mse += f64::from(n) * f64::from(dist);
 	}
+	mse / f64::from(oklab.num_colors())
 }
 
 /// For each center, update its centroid using the vector sums and compute deltas
@@ -477,31 +500,20 @@ fn kmeans<D: ColorDifference>(
 	kmeans_plus_plus::<D>(k, &mut rng, oklab, &mut centers.centroid, &mut points.weight);
 
 	let mut iterations = 0;
+	let mut mse = 0.0;
 	if max_iter > 0 {
 		update_distances::<D>(&centers.centroid, distances);
-		initialize_assignments::<D>(oklab, centers, distances, &mut points.assignment);
+		mse = initialize_assignments::<D>(oklab, centers, distances, &mut points.assignment);
 		let mut total_delta = update_centroids::<D>(&mut rng, centers);
 		iterations += 1;
 
 		while iterations < max_iter && total_delta > convergence {
 			update_distances::<D>(&centers.centroid, distances);
-			update_assignments::<D>(oklab, centers, distances, points);
+			mse = update_assignments::<D>(oklab, centers, distances, &mut points.assignment);
 			total_delta = update_centroids::<D>(&mut rng, centers);
 			iterations += 1;
 		}
 	}
-
-	let variance = oklab
-		.color_counts
-		.iter()
-		.zip(&points.assignment)
-		.map(|(&(color, n), &center)| {
-			f64::from(n) * f64::from(D::squared_distance(color, centers.centroid[usize::from(center)]))
-		})
-		.sum::<f64>();
-
-	#[allow(clippy::cast_possible_truncation)]
-	let mse = (variance / f64::from(oklab.num_colors())) as f32;
 
 	let (mut centroids, counts): (Vec<_>, Vec<_>) = centers
 		.centroid
@@ -536,7 +548,7 @@ fn run_trials<D: ColorDifference>(
 
 	(0..trials)
 		.map(|i| kmeans::<D>(oklab, &mut state, k, max_iter, convergence, seed ^ u64::from(i)))
-		.min_by(|x, y| f32::total_cmp(&x.mse, &y.mse))
+		.min_by(|x, y| f64::total_cmp(&x.mse, &y.mse))
 		.unwrap_or(KmeansResult::empty())
 }
 
@@ -751,7 +763,12 @@ mod tests {
 		let expected_sum = center_sum(&state.centers.sum);
 		let expected_count = state.centers.count.iter().sum::<u32>();
 
-		update_assignments::<EuclideanDistance>(&data, &mut state.centers, &state.distances, &mut state.points);
+		update_assignments::<EuclideanDistance>(
+			&data,
+			&mut state.centers,
+			&state.distances,
+			&mut state.points.assignment,
+		);
 
 		assert_eq!(expected_count, state.centers.count.iter().sum());
 		assert_relative_eq!(expected_sum, center_sum(&state.centers.sum));
@@ -762,7 +779,12 @@ mod tests {
 		let (data, mut state, _) = initialize(4);
 		update_distances::<EuclideanDistance>(&state.centers.centroid, &mut state.distances);
 
-		update_assignments::<EuclideanDistance>(&data, &mut state.centers, &state.distances, &mut state.points);
+		update_assignments::<EuclideanDistance>(
+			&data,
+			&mut state.centers,
+			&state.distances,
+			&mut state.points.assignment,
+		);
 
 		for (&(color, count), &center) in data.color_counts.iter().zip(&state.points.assignment) {
 			let center = usize::from(center);
@@ -790,7 +812,12 @@ mod tests {
 		let old_centroids = state.centers.centroid.clone();
 
 		update_distances::<EuclideanDistance>(&state.centers.centroid, &mut state.distances);
-		update_assignments::<EuclideanDistance>(&data, &mut state.centers, &state.distances, &mut state.points);
+		update_assignments::<EuclideanDistance>(
+			&data,
+			&mut state.centers,
+			&state.distances,
+			&mut state.points.assignment,
+		);
 
 		let total_delta = update_centroids::<EuclideanDistance>(&mut rng, &mut state.centers);
 
@@ -822,7 +849,7 @@ mod tests {
 		let data = test_data();
 
 		let expected = KmeansResult {
-			mse: 0.012136616,
+			mse: 0.012136615691512512,
 			centroids: vec![
 				Oklab {
 					l: 0.13251413,
@@ -858,7 +885,7 @@ mod tests {
 		let data = test_data();
 
 		let expected = KmeansResult {
-			mse: 0.004202911,
+			mse: 0.004202910981499978,
 			centroids: vec![
 				Oklab {
 					l: 0.19259314,
@@ -900,7 +927,7 @@ mod tests {
 		}
 
 		let expected = KmeansResult {
-			mse: 0.008327939,
+			mse: 0.008327938582321318,
 			centroids: vec![
 				Oklab {
 					l: 0.16056176,
