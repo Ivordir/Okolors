@@ -5,6 +5,7 @@ use palette::Oklab;
 use rand::{Rng, SeedableRng};
 #[cfg(feature = "threads")]
 use rayon::prelude::*;
+use std::ops::{AddAssign, SubAssign};
 
 /// Color difference/distance in a uniform color space
 trait ColorDifference {
@@ -172,122 +173,6 @@ fn kmeans_plus_plus<D: ColorDifference>(
 	}
 }
 
-/// Initializes the assigned center for each data point,
-/// computing the initial center sums and counts as well.
-#[cfg(feature = "threads")]
-fn initialize_assignments<D: ColorDifference>(
-	oklab: &OklabCounts,
-	centers: &mut CenterData,
-	distances: &[(u8, f32)],
-	assignment: &mut [u8],
-) -> f64 {
-	let k = centers.centroid.len();
-	let num_points = oklab.color_counts.len();
-	let first_centroid = centers.centroid[0];
-
-	let deltas = assignment
-		.par_iter_mut()
-		.with_min_len(num_points / rayon::current_num_threads())
-		.zip(&oklab.color_counts)
-		.fold_with(
-			(vec![Oklab { l: 0.0, a: 0.0, b: 0.0 }; k], vec![0; k], 0.0),
-			|(mut sums, mut counts, mut variance), (center, &(color, n))| {
-				let dist = D::squared_distance(color, first_centroid);
-
-				// Find the closest center
-				let mut min_dist = dist;
-				let mut min_center = *center;
-				for &(other_center, half_dist) in &distances[1..k] {
-					if dist < half_dist {
-						break;
-					}
-
-					let other_dist = D::squared_distance(color, centers.centroid[usize::from(other_center)]);
-					if other_dist < min_dist {
-						min_dist = other_dist;
-						min_center = other_center;
-					}
-				}
-
-				let cj = usize::from(min_center);
-				let nf = f64::from(n);
-				let sum = &mut sums[cj];
-				sum.l += nf * f64::from(color.l);
-				sum.a += nf * f64::from(color.a);
-				sum.b += nf * f64::from(color.b);
-				counts[cj] += n;
-				*center = min_center;
-
-				variance += f64::from(n) * f64::from(dist);
-
-				(sums, counts, variance)
-			},
-		)
-		.collect::<Vec<_>>();
-
-	let mut mse = 0.0;
-	for (delta_sums, delta_counts, variance) in deltas {
-		for (sum, delta_sum) in centers.sum.iter_mut().zip(&delta_sums) {
-			sum.l += delta_sum.l;
-			sum.a += delta_sum.a;
-			sum.b += delta_sum.b;
-		}
-		for (count, &delta_count) in centers.count.iter_mut().zip(&delta_counts) {
-			*count += delta_count;
-		}
-		mse += variance;
-	}
-
-	mse / f64::from(oklab.num_colors())
-}
-
-/// Initializes the assigned center for each data point,
-/// computing the initial center sums and counts as well.
-#[cfg(not(feature = "threads"))]
-fn initialize_assignments<D: ColorDifference>(
-	oklab: &OklabCounts,
-	centers: &mut CenterData,
-	distances: &[(u8, f32)],
-	assignment: &mut [u8],
-) -> f64 {
-	let k = centers.centroid.len();
-	let first_centroid = centers.centroid[0];
-
-	let mut mse = 0.0;
-	for (&(color, n), center) in oklab.color_counts.iter().zip(assignment) {
-		let dist = D::squared_distance(color, first_centroid);
-
-		// Find the closest center
-		let mut min_dist = dist;
-		let mut min_center = *center;
-		for &(other_center, half_dist) in &distances[1..k] {
-			if dist < half_dist {
-				break;
-			}
-
-			let other_dist = D::squared_distance(color, centers.centroid[usize::from(other_center)]);
-			if other_dist < min_dist {
-				min_dist = other_dist;
-				min_center = other_center;
-			}
-		}
-
-		let cj = usize::from(min_center);
-		let nf = f64::from(n);
-		let sum = &mut centers.sum[cj];
-		sum.l += nf * f64::from(color.l);
-		sum.a += nf * f64::from(color.a);
-		sum.b += nf * f64::from(color.b);
-		centers.count[cj] += n;
-
-		*center = min_center;
-
-		mse += f64::from(n) * f64::from(dist);
-	}
-
-	mse / f64::from(oklab.num_colors())
-}
-
 /// For each pair of centers, update their distances and sort each center's row by increasing distance
 // i and j are < centroids.len() <= u8::MAX
 #[allow(clippy::cast_possible_truncation)]
@@ -309,6 +194,59 @@ fn update_distances<D: ColorDifference>(centroids: &[Oklab], distances: &mut [(u
 	}
 }
 
+/// Move a data point to it first assigned center
+fn first_move_point<Count: From<u32> + AddAssign>(
+	sums: &mut [Oklab<f64>],
+	counts: &mut [Count],
+	center: &mut u8,
+	new_center: u8,
+	color: Oklab,
+	n: u32,
+) {
+	let cj = usize::from(new_center);
+	let nf = f64::from(n);
+	let sum = &mut sums[cj];
+	sum.l += nf * f64::from(color.l);
+	sum.a += nf * f64::from(color.a);
+	sum.b += nf * f64::from(color.b);
+	counts[cj] += Count::from(n);
+	*center = new_center;
+}
+
+/// Move a data point from one center to another
+fn move_point<Count: From<u32> + Copy + AddAssign + SubAssign>(
+	sums: &mut [Oklab<f64>],
+	counts: &mut [Count],
+	center: &mut u8,
+	new_center: u8,
+	color: Oklab,
+	n: u32,
+) {
+	if *center != new_center {
+		let nf = f64::from(n);
+		let n = Count::from(n);
+		let l = nf * f64::from(color.l);
+		let a = nf * f64::from(color.a);
+		let b = nf * f64::from(color.b);
+
+		let ci = usize::from(*center);
+		let old_sum = &mut sums[ci];
+		old_sum.l -= l;
+		old_sum.a -= a;
+		old_sum.b -= b;
+		counts[ci] -= n;
+
+		let cj = usize::from(new_center);
+		let new_sum = &mut sums[cj];
+		new_sum.l += l;
+		new_sum.a += a;
+		new_sum.b += b;
+		counts[cj] += n;
+
+		*center = new_center;
+	}
+}
+
 /// For each data point, update its assigned center
 #[cfg(feature = "threads")]
 fn update_assignments<D: ColorDifference>(
@@ -316,6 +254,7 @@ fn update_assignments<D: ColorDifference>(
 	centers: &mut CenterData,
 	distances: &[(u8, f32)],
 	assignment: &mut [u8],
+	change_assignment: impl Fn(&mut [Oklab<f64>], &mut [i64], &mut u8, u8, Oklab, u32) + Send + Sync,
 ) -> f64 {
 	let k = centers.centroid.len();
 	let num_points = oklab.color_counts.len();
@@ -344,30 +283,7 @@ fn update_assignments<D: ColorDifference>(
 					}
 				}
 
-				// Move this point to its new center
-				if min_center != *center {
-					let nf = f64::from(n);
-					let n = i64::from(n);
-					let l = nf * f64::from(color.l);
-					let a = nf * f64::from(color.a);
-					let b = nf * f64::from(color.b);
-
-					let old_sum = &mut sums[ci];
-					old_sum.l -= l;
-					old_sum.a -= a;
-					old_sum.b -= b;
-					counts[ci] -= n;
-
-					let cj = usize::from(min_center);
-
-					let new_sum = &mut sums[cj];
-					new_sum.l += l;
-					new_sum.a += a;
-					new_sum.b += b;
-					counts[cj] += n;
-
-					*center = min_center;
-				}
+				change_assignment(&mut sums, &mut counts, center, min_center, color, n);
 
 				variance += f64::from(n) * f64::from(dist);
 
@@ -405,12 +321,13 @@ fn update_assignments<D: ColorDifference>(
 	oklab: &OklabCounts,
 	centers: &mut CenterData,
 	distances: &[(u8, f32)],
-	points: &mut PointData,
+	assignment: &mut [u8],
+	change_assignment: impl Fn(&mut [Oklab<f64>], &mut [u32], &mut u8, u8, Oklab, u32),
 ) -> f64 {
 	let k = centers.centroid.len();
 
 	let mut mse = 0.0;
-	for (&(color, n), center) in oklab.color_counts.iter().zip(&mut points.assignment) {
+	for (&(color, n), center) in oklab.color_counts.iter().zip(assignment) {
 		let ci = usize::from(*center);
 		let dist = D::squared_distance(color, centers.centroid[ci]);
 
@@ -429,29 +346,7 @@ fn update_assignments<D: ColorDifference>(
 			}
 		}
 
-		// Move this point to its new center
-		if min_center != *center {
-			let nf = f64::from(n);
-			let l = nf * f64::from(color.l);
-			let a = nf * f64::from(color.a);
-			let b = nf * f64::from(color.b);
-
-			let old_sum = &mut centers.sum[ci];
-			old_sum.l -= l;
-			old_sum.a -= a;
-			old_sum.b -= b;
-			centers.count[ci] -= n;
-
-			let cj = usize::from(min_center);
-
-			let new_sum = &mut centers.sum[cj];
-			new_sum.l += l;
-			new_sum.a += a;
-			new_sum.b += b;
-			centers.count[cj] += n;
-
-			*center = min_center;
-		}
+		change_assignment(&mut centers.sum, &mut centers.count, center, min_center, color, n);
 
 		mse += f64::from(n) * f64::from(dist);
 	}
@@ -503,13 +398,13 @@ fn kmeans<D: ColorDifference>(
 	let mut mse = 0.0;
 	if max_iter > 0 {
 		update_distances::<D>(&centers.centroid, distances);
-		mse = initialize_assignments::<D>(oklab, centers, distances, &mut points.assignment);
+		mse = update_assignments::<D>(oklab, centers, distances, &mut points.assignment, first_move_point);
 		let mut total_delta = update_centroids::<D>(&mut rng, centers);
 		iterations += 1;
 
 		while iterations < max_iter && total_delta > convergence {
 			update_distances::<D>(&centers.centroid, distances);
-			mse = update_assignments::<D>(oklab, centers, distances, &mut points.assignment);
+			mse = update_assignments::<D>(oklab, centers, distances, &mut points.assignment, move_point);
 			total_delta = update_centroids::<D>(&mut rng, centers);
 			iterations += 1;
 		}
@@ -715,11 +610,12 @@ mod tests {
 
 		update_distances::<EuclideanDistance>(&state.centers.centroid, &mut state.distances);
 
-		initialize_assignments::<EuclideanDistance>(
+		update_assignments::<EuclideanDistance>(
 			&data,
 			&mut state.centers,
 			&state.distances,
 			&mut state.points.assignment,
+			first_move_point,
 		);
 
 		update_centroids::<EuclideanDistance>(&mut rng, &mut state.centers);
@@ -768,6 +664,7 @@ mod tests {
 			&mut state.centers,
 			&state.distances,
 			&mut state.points.assignment,
+			move_point,
 		);
 
 		assert_eq!(expected_count, state.centers.count.iter().sum());
@@ -784,6 +681,7 @@ mod tests {
 			&mut state.centers,
 			&state.distances,
 			&mut state.points.assignment,
+			move_point,
 		);
 
 		for (&(color, count), &center) in data.color_counts.iter().zip(&state.points.assignment) {
@@ -817,6 +715,7 @@ mod tests {
 			&mut state.centers,
 			&state.distances,
 			&mut state.points.assignment,
+			move_point,
 		);
 
 		let total_delta = update_centroids::<EuclideanDistance>(&mut rng, &mut state.centers);
