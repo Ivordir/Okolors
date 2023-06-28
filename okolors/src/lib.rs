@@ -77,7 +77,7 @@
 //! A value of `1.0` indicates no scaling and performs color difference in the [`Oklab`] color space using standard euclidean distance.
 //! Otherwise, lower weights have the effect of merging similar colors together, possibly bringing out more distinct hues.
 //! Note that for weights near `0.0`, if the image contains black and white, then they will be averaged into a shade of gray.
-//! Also, the lightness weight affects the final ME, so it does not make sense to compare two [`KmeansResult`]s using their MSE
+//! Also, the lightness weight affects the final MSE, so it does not make sense to compare two [`KmeansResult`]s using their MSE
 //! if the results came from different lightness weights.
 //!
 //! ## Trials
@@ -585,7 +585,7 @@ impl OklabCounts {
 		)
 	}
 
-	/// Create an [`OklabCounts`] from an `RgbImage`
+	/// Create an [`OklabCounts`] from a `RgbImage`
 	///
 	/// # Errors
 	/// An `Error` is returned if the number of pixels in `image` is greater than `u32::MAX`.
@@ -594,7 +594,7 @@ impl OklabCounts {
 		Self::try_from_srgb(palette::cast::from_component_slice(image.as_raw()))
 	}
 
-	/// Create an [`OklabCounts`] from an `RgbaImage`
+	/// Create an [`OklabCounts`] from a `RgbaImage`
 	///
 	/// Pixels with an alpha value less than `alpha_threshold` are excluded from the resulting [`OklabCounts`].
 	///
@@ -609,7 +609,7 @@ impl OklabCounts {
 		}
 	}
 
-	/// Create an [`OklabCounts`] from an `DynamicImage`
+	/// Create an [`OklabCounts`] from a `DynamicImage`
 	///
 	/// Pixels with an alpha value less than `alpha_threshold` are excluded from the resulting [`OklabCounts`].
 	/// Of course, if the image does not have an alpha channel, then `alpha_threshold` is ignored.

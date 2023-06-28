@@ -160,7 +160,7 @@ fn update_distances<D: ColorDifference>(KmeansState { centroids, distances, .. }
 	}
 }
 
-/// Move a data point to it first assigned center
+/// Move a data point to its first assigned center
 fn first_move_point<Count: From<u32> + AddAssign>(
 	sums: &mut [Oklab<f64>],
 	counts: &mut [Count],
