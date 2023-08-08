@@ -1,43 +1,43 @@
 <svg height="200" viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg">
   <rect id="swatch" width="40" height="40"/>
-  <use href="#swatch" x="0" fill="rgb(35,34,33)"/>
-  <use href="#swatch" x="40" fill="rgb(13,23,25)"/>
-  <use href="#swatch" x="80" fill="rgb(10,40,45)"/>
-  <use href="#swatch" x="120" fill="rgb(15,79,90)"/>
-  <use href="#swatch" x="160" fill="rgb(79,49,38)"/>
-  <use href="#swatch" x="200" fill="rgb(183,114,78)"/>
-  <use href="#swatch" x="240" fill="rgb(122,113,152)"/>
-  <use href="#swatch" x="280" fill="rgb(166,105,128)"/>
-  <use href="#swatch" x="0" y="40" fill="rgb(22,22,21)"/>
-  <use href="#swatch" x="40" y="40" fill="rgb(13,24,26)"/>
-  <use href="#swatch" x="80" y="40" fill="rgb(5,26,29)"/>
-  <use href="#swatch" x="120" y="40" fill="rgb(2,26,31)"/>
-  <use href="#swatch" x="160" y="40" fill="rgb(33,18,12)"/>
-  <use href="#swatch" x="200" y="40" fill="rgb(35,17,7)"/>
-  <use href="#swatch" x="240" y="40" fill="rgb(23,20,33)"/>
+  <use href="#swatch" x="0" fill="rgb(32,34,33)"/>
+  <use href="#swatch" x="40" fill="rgb(8,28,31)"/>
+  <use href="#swatch" x="80" fill="rgb(14,71,81)"/>
+  <use href="#swatch" x="120" fill="rgb(39,24,17)"/>
+  <use href="#swatch" x="160" fill="rgb(122,113,152)"/>
+  <use href="#swatch" x="200" fill="rgb(190,119,79)"/>
+  <use href="#swatch" x="240" fill="rgb(132,81,68)"/>
+  <use href="#swatch" x="280" fill="rgb(164,105,130)"/>
+  <use href="#swatch" x="0" y="40" fill="rgb(21,23,22)"/>
+  <use href="#swatch" x="40" y="40" fill="rgb(7,25,29)"/>
+  <use href="#swatch" x="80" y="40" fill="rgb(2,26,30)"/>
+  <use href="#swatch" x="120" y="40" fill="rgb(31,19,13)"/>
+  <use href="#swatch" x="160" y="40" fill="rgb(23,20,33)"/>
+  <use href="#swatch" x="200" y="40" fill="rgb(36,17,6)"/>
+  <use href="#swatch" x="240" y="40" fill="rgb(34,17,13)"/>
   <use href="#swatch" x="280" y="40" fill="rgb(34,16,23)"/>
-  <use href="#swatch" x="0" y="80" fill="rgb(70,70,67)"/>
-  <use href="#swatch" x="40" y="80" fill="rgb(50,75,79)"/>
-  <use href="#swatch" x="80" y="80" fill="rgb(26,78,86)"/>
-  <use href="#swatch" x="120" y="80" fill="rgb(15,79,89)"/>
-  <use href="#swatch" x="160" y="80" fill="rgb(95,60,47)"/>
-  <use href="#swatch" x="200" y="80" fill="rgb(100,57,35)"/>
-  <use href="#swatch" x="240" y="80" fill="rgb(71,65,93)"/>
-  <use href="#swatch" x="280" y="80" fill="rgb(96,55,71)"/>
-  <use href="#swatch" x="0" y="120" fill="rgb(119,119,116)"/>
-  <use href="#swatch" x="40" y="120" fill="rgb(89,126,132)"/>
-  <use href="#swatch" x="80" y="120" fill="rgb(52,132,145)"/>
-  <use href="#swatch" x="120" y="120" fill="rgb(32,133,150)"/>
-  <use href="#swatch" x="160" y="120" fill="rgb(156,105,86)"/>
-  <use href="#swatch" x="200" y="120" fill="rgb(165,100,66)"/>
-  <use href="#swatch" x="240" y="120" fill="rgb(121,112,151)"/>
-  <use href="#swatch" x="280" y="120" fill="rgb(157,98,121)"/>
-  <use href="#swatch" x="0" y="160" fill="rgb(172,171,168)"/>
-  <use href="#swatch" x="40" y="160" fill="rgb(139,180,186)"/>
-  <use href="#swatch" x="80" y="160" fill="rgb(88,188,205)"/>
-  <use href="#swatch" x="120" y="160" fill="rgb(55,191,213)"/>
-  <use href="#swatch" x="160" y="160" fill="rgb(208,158,141)"/>
-  <use href="#swatch" x="200" y="160" fill="rgb(221,153,119)"/>
-  <use href="#swatch" x="240" y="160" fill="rgb(173,166,200)"/>
-  <use href="#swatch" x="280" y="160" fill="rgb(207,154,173)"/>
+  <use href="#swatch" x="0" y="80" fill="rgb(67,71,69)"/>
+  <use href="#swatch" x="40" y="80" fill="rgb(35,77,84)"/>
+  <use href="#swatch" x="80" y="80" fill="rgb(16,78,89)"/>
+  <use href="#swatch" x="120" y="80" fill="rgb(91,62,49)"/>
+  <use href="#swatch" x="160" y="80" fill="rgb(72,65,93)"/>
+  <use href="#swatch" x="200" y="80" fill="rgb(100,57,33)"/>
+  <use href="#swatch" x="240" y="80" fill="rgb(97,58,48)"/>
+  <use href="#swatch" x="280" y="80" fill="rgb(96,55,73)"/>
+  <use href="#swatch" x="0" y="120" fill="rgb(115,120,118)"/>
+  <use href="#swatch" x="40" y="120" fill="rgb(66,130,142)"/>
+  <use href="#swatch" x="80" y="120" fill="rgb(34,133,149)"/>
+  <use href="#swatch" x="120" y="120" fill="rgb(150,108,88)"/>
+  <use href="#swatch" x="160" y="120" fill="rgb(121,112,151)"/>
+  <use href="#swatch" x="200" y="120" fill="rgb(166,100,63)"/>
+  <use href="#swatch" x="240" y="120" fill="rgb(160,102,87)"/>
+  <use href="#swatch" x="280" y="120" fill="rgb(157,98,123)"/>
+  <use href="#swatch" x="0" y="160" fill="rgb(168,173,171)"/>
+  <use href="#swatch" x="40" y="160" fill="rgb(109,185,199)"/>
+  <use href="#swatch" x="80" y="160" fill="rgb(59,190,212)"/>
+  <use href="#swatch" x="120" y="160" fill="rgb(203,161,141)"/>
+  <use href="#swatch" x="160" y="160" fill="rgb(173,166,199)"/>
+  <use href="#swatch" x="200" y="160" fill="rgb(222,153,115)"/>
+  <use href="#swatch" x="240" y="160" fill="rgb(211,156,142)"/>
+  <use href="#swatch" x="280" y="160" fill="rgb(207,154,175)"/>
 </svg>

@@ -33,7 +33,7 @@ Running Okolors for this image with the default options gives the following sRGB
 
 ```bash
 > okolors 'Jewel Changi.jpg'
-020707 0A3F48 E8E8E9 32221D 92ADBE CE8971 7C678D 814B3F
+020404 06272C E6E7E9 1C5A66 452A21 92A1B9 C6815D A46C82
 ```
 
 If your terminal supports true color,
