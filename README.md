@@ -106,18 +106,18 @@ The benchmarks were run on a 4-core/8-thread CPU, so YMMV on different hardware 
 
 | Image                    | Dimensions | Time (ms) |
 |:------------------------ |:----------:| ---------:|
-| Akihabara.jpg            | 5663x3669  |       191 |
-| Bryggen.jpg              | 5508x3098  |        75 |
-| Cesky Krumlov.jpg        | 4608x3456  |        90 |
-| Hokkaido.jpg             | 6000x4000  |       113 |
-| Jewel Changi.jpg         | 6000x4000  |       129 |
-| Lake Atitlan.jpg         | 5112x3408  |       134 |
-| Lake Mendota.jpg         | 3839x5758  |       106 |
-| Louvre.jpg               | 6056x4000  |       121 |
-| Sydney Sunset.jpg        | 2880x1508  |        23 |
-| Termas Geometricas.jpg   | 5472x3648  |        97 |
-| Yellow Crane Tower.jpg   | 3785x2839  |        68 |
-| Yosemite Tunnel View.jpg | 5580x3720  |        91 |
+| Akihabara.jpg            | 5663x3669  |       140 |
+| Bryggen.jpg              | 5508x3098  |        51 |
+| Cesky Krumlov.jpg        | 4608x3456  |        71 |
+| Hokkaido.jpg             | 6000x4000  |        83 |
+| Jewel Changi.jpg         | 6000x4000  |        97 |
+| Lake Atitlan.jpg         | 5112x3408  |       115 |
+| Lake Mendota.jpg         | 3839x5758  |        73 |
+| Louvre.jpg               | 6056x4000  |        88 |
+| Sydney Sunset.jpg        | 2880x1508  |        15 |
+| Termas Geometricas.jpg   | 5472x3648  |        76 |
+| Yellow Crane Tower.jpg   | 3785x2839  |        55 |
+| Yosemite Tunnel View.jpg | 5580x3720  |        69 |
 
 Note that these are high resolution images, so the running time can be much faster for lower resolution images.
 The binary also has a CLI flag to create a thumbnail for images over a certain size.
