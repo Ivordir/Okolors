@@ -1,6 +1,6 @@
 [package]
 name = "okolors-bin"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Ivordir <Ivordir@pm.me>"]
 edition = "2021"
 description = "Generates a color palette for an image by performing k-means clustering in the Oklab color space. Supports outputting the resulting colors in multiple Okhsl lightness levels."
