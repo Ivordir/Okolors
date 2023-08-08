@@ -427,7 +427,7 @@ impl OklabCounts {
 									if count > 0 {
 										#[allow(clippy::cast_possible_truncation)]
 										let srgb = Srgb::new(r as u8, g as u8, b as u8);
-										let oklab: Oklab = srgb.into_format().into_color();
+										let oklab: Oklab = srgb.into_linear().into_color();
 										color_counts.push((oklab, count));
 									}
 								}
@@ -522,7 +522,7 @@ impl OklabCounts {
 								if count > 0 {
 									#[allow(clippy::cast_possible_truncation)]
 									let srgb = Srgb::new(r as u8, g as u8, b as u8);
-									let oklab: Oklab = srgb.into_format().into_color();
+									let oklab: Oklab = srgb.into_linear().into_color();
 									color_counts.push((oklab, count));
 								}
 							}
