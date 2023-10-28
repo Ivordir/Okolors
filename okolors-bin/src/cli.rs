@@ -119,14 +119,14 @@ pub struct Options {
     ///
     /// Increasing the batch size reduces the running time but with dimishing returns.
     /// Smaller batch sizes are more accurate but slower to run.
-    #[cfg(feature = "quantette_threads")]
+    #[cfg(feature = "threads")]
     #[arg(long, default_value_t = 4096)]
     pub batch_size: u32,
 
     /// The number of threads to use
     ///
     /// A value of 0 indicates to automatically choose the number of threads.
-    #[cfg(any(feature = "quantette_threads", feature = "jpeg_rayon"))]
+    #[cfg(feature = "threads")]
     #[arg(short, long, default_value_t = 0)]
     pub threads: u8,
 

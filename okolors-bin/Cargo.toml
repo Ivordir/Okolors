@@ -15,11 +15,7 @@ path = "src/main.rs"
 
 [features]
 default = ["threads", "default_formats"]
-
-# Parallelism via rayon
-threads = ["quantette_threads", "jpeg_rayon"]
-quantette_threads = ["quantette/threads", "rayon"]
-jpeg_rayon = ["image/jpeg_rayon", "rayon"]
+threads = ["quantette/threads", "image/jpeg_rayon", "rayon"]
 
 # Image formats
 default_formats = ["jpeg", "png", "gif", "qoi"]

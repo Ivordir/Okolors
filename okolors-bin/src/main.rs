@@ -104,7 +104,7 @@ fn main() -> ExitCode {
 }
 
 /// Builds a thread pool and then runs `get_print_palette`
-#[cfg(any(feature = "quantette_threads", feature = "jpeg_rayon"))]
+#[cfg(feature = "threads")]
 fn run_generate_and_print_palette(options: &Options) -> Result<(), ImageLoadError> {
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(usize::from(options.threads))
@@ -115,7 +115,7 @@ fn run_generate_and_print_palette(options: &Options) -> Result<(), ImageLoadErro
 }
 
 /// Runs `get_print_palette` on a single thread
-#[cfg(not(any(feature = "quantette_threads", feature = "jpeg_rayon")))]
+#[cfg(not(feature = "threads"))]
 fn run_generate_and_print_palette(options: &Options) -> Result<(), ImageLoadError> {
     generate_and_print_palette(options)
 }
@@ -277,13 +277,13 @@ fn palette_counts(image: &RgbImage, options: &Options) -> (Vec<Oklab>, Vec<u32>)
 }
 
 /// temp
-#[cfg(not(feature = "quantette_threads"))]
+#[cfg(not(feature = "threads"))]
 fn get_palette_counts(image: &RgbImage, options: &Options) -> (Vec<Oklab>, Vec<u32>) {
     palette_counts(image, options)
 }
 
 /// Generate a palette from the given image and options
-#[cfg(feature = "quantette_threads")]
+#[cfg(feature = "threads")]
 fn get_palette_counts(image: &RgbImage, options: &Options) -> (Vec<Oklab>, Vec<u32>) {
     let Options {
         lightness_weight,
@@ -494,7 +494,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(any(feature = "jpeg", feature = "jpeg_rayon"))]
+    #[cfg(any(feature = "jpeg", feature = "threads"))]
     fn load_jpeg() {
         test_format("jpg");
     }
