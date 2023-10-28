@@ -16,6 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - run: rustup update stable
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
           bin: okolors
