@@ -21,5 +21,4 @@ jobs:
         with:
           bin: okolors
           archive: $bin-$tag-$target
-          include: LICENSE
           token: ${{ secrets.GITHUB_TOKEN }}
