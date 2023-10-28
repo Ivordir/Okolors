@@ -3,47 +3,21 @@ name = "okolors"
 version = "0.4.0"
 authors = ["Ivordir <Ivordir@pm.me>"]
 edition = "2021"
-description = "Generates a color palette for an image by performing k-means clustering in the Oklab color space."
+description = "Create color palettes from images by performing k-means clustering in the Oklab color space."
 homepage = "https://github.com/Ivordir/Okolors"
 repository = "https://github.com/Ivordir/Okolors"
-license = "MIT"
+license = "MIT OR Apache-2.0"
 readme = "../README.md"
 include = ["src"]
 keywords = ["palette", "theme", "color", "oklab", "kmeans"]
 categories = ["multimedia::images"]
 
-[[bench]]
-name = "functions"
-harness = false
-path = "benches/functions.rs"
-
-[[example]]
-name = "parameters"
-path = "experiments/parameters.rs"
-
-[[example]]
-name = "accuracy"
-path = "experiments/accuracy.rs"
-
-[[example]]
-name = "plot"
-path = "experiments/plot/plot.rs"
-
 [features]
-default = ["threads"]
-threads = ["rayon"]
+default = ["threads", "image"]
+threads = ["quantette/threads"]
+image = ["quantette/image", "dep:image"]
 
 [dependencies]
-image = { version = "0.24.6", default-features = false }
-palette = { version = "0.7.1", default-features = false, features = ["std"] }
-rand = { version = "0.8.5", default-features = false, features = ["alloc"] }
-rand_xoshiro = "0.6.0"
-rayon = { version = "1.7.0", optional = true }
-
-[dev-dependencies]
-approx = "0.5.1"
-clap = { version = "4.3.0", features = ["derive"] }
-criterion = "0.4.0"
-itertools = "0.10.5"
-palette = { version = "0.7.1", default-features = false, features = ["approx"] }
-image = { version = "0.24.6", default-features = false, features = ["jpeg", "jpeg_rayon", "png", "gif", "qoi"] }
+quantette = { version = "0.1.0", default-features = false, features = ["kmeans", "colorspaces"] }
+palette = { version = "0.7.3", default-features = false }
+image = { version = "0.24.7", default-features = false, optional = true }

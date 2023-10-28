@@ -1,765 +1,452 @@
-//! Perform k-means clustering in the Oklab color space.
+//! Create a color palette from an image using k-means clustering in the Oklab color space.
 //!
-//! # Overview
+//! This library is a simple wrapper around the [`quantette`] crate
+//! but only exposes functionality for generating color palettes.
+//! Additionally, this crate adds a few additional options not present in [`quantette`].
 //!
-//! Okolors takes an image in the `sRGB` color space or a slice of [`Srgb`] colors and returns `k` average [`Oklab`] colors.
-//!
-//! See the [parameters](#parameters) section for information about and recommended values for each of [`run`]'s parameters.
-//!
-//! For visual examples and more information (e.g., features, performance, or the Okolors binary)
-//! see the [README](https://github.com/Ivordir/Okolors#readme).
+//! # Features
+//! This crate has two features that are enabled by default:
+//! - `threads`: adds parallel versions of the palette functions (see below).
+//! - `image`: enables integration with the [`image`] crate.
 //!
 //! # Examples
 //!
-//! ## Read an image file and get 5 average colors.
-//!
-//! The example below first opens an image and then processes it into a [`OklabCounts`].
-//! This counts duplicate pixels and converts them to the [`Oklab`] color space.
-//! The resulting [`OklabCounts`] can be reused for multiple k-means runs with different arguments.
-//! In this example, only one k-means run is done with k = 5.
-//!
+//! To start, create an [`Okolors`] from a [`RgbImage`] (note that the `image` feature is needed):
 //! ```no_run
-//! # fn main() -> Result<(), image::ImageError> {
-//! let img = image::open("some image")?;
-//! // For large images, you can create a thumbnail here to reduce the running time
-//! // use image::GenericImageView;
-//! // let img = img.thumbnail(width, height);
-//!
-//! let oklab = okolors::OklabCounts::try_from_image(&img, u8::MAX).expect("non-gigantic image");
-//! let result = okolors::run(&oklab, 1, 5, 0.05, 64, 0);
-//! #
+//! # use okolors::Okolors;
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let img = image::open("some image")?.into_rgb8();
+//! let palette_builder = Okolors::try_from(&img)?;
 //! # Ok(())
 //! # }
 //! ```
 //!
-//! ## Run with different lightness weights.
-//!
-//! This example reuses an [`OklabCounts`], changing its `lightness_weight` to get different [`KmeansResult`]s.
-//!
-//! ```no_run
-//! # fn main() -> Result<(), image::ImageError> {
-//! let img = image::open("some image")?;
-//!
-//! let mut oklab = okolors::OklabCounts::try_from_image(&img, u8::MAX)
-//!     .expect("non-gigantic image")
-//!     .with_lightness_weight(0.325);
-//!
-//! let resultA = okolors::run(&oklab, 1, 5, 0.05, 64, 0);
-//!
-//! oklab.set_lightness_weight(0.01);
-//! let resultB = okolors::run(&oklab, 1, 5, 0.05, 64, 0);
-//! #
+//! Instead of an [`RgbImage`], a slice of [`Srgb<u8>`] colors can be used instead:
+//! ```
+//! # use okolors::Okolors;
+//! # use quantette::AboveMaxLen;
+//! # use palette::Srgb;
+//! # fn main() -> Result<(), AboveMaxLen<u32>> {
+//! let srgb = vec![Srgb::new(0, 0, 0)];
+//! let palette_builder = Okolors::try_from(srgb.as_slice())?;
 //! # Ok(())
 //! # }
 //! ```
 //!
-//! # Parameters
+//! If the default options aren't to your liking, you can tweak them:
+//! ```no_run
+//! # use okolors::Okolors;
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # let img = image::open("some image")?.into_rgb8();
+//! let palette_builder = Okolors::try_from(&img)?
+//!     .palette_size(16.into())
+//!     .lightness_weight(0.5)
+//!     .sampling_factor(0.25);
+//! # Ok(())
+//! # }
+//! ```
 //!
-//! Here are explanations for the various parameters of [`run`] and more.
+//! To finally generate the palette, use:
+//! - [`Okolors::srgb8_palette`] for a [`Srgb<u8>`] palette
+//! - [`Okolors::srgb_palette`] for a [`Srgb`] palette (components are `f32` instead of `u8`)
+//! - [`Okolors::oklab_palette`] for an [`Oklab`] palette
 //!
-//! In short, the `trials`, `convergence_threshold`, and `max_iter` parameters
-//! control the color accuracy at the expense of running time.
-//! `k` indicates the number of colors to return,
-//! and `lightness_weight` is a subjective parameter that affects how the colors are clustered.
+//! For example:
+//! ```
+//! # use okolors::Okolors;
+//! # use quantette::AboveMaxLen;
+//! # use palette::Srgb;
+//! # fn main() -> Result<(), AboveMaxLen<u32>> {
+//! # let srgb = vec![Srgb::new(0, 0, 0)];
+//! # let palette_builder = Okolors::new(srgb.as_slice().try_into()?);
+//! let palette = palette_builder.srgb8_palette();
+//! # Ok(())
+//! # }
+//! ```
 //!
-//! The [README](https://github.com/Ivordir/Okolors#readme) contains some visual examples of the effects of the parameters below.
-//!
-//! Note that if `trials = 0`, `k = 0`, or an empty slice of Srgb colors is provided,
-//! then the returned [`KmeansResult`] will have no centroids and a MSE of `0.0`.
-//!
-//! ## Lightness Weight
-//!
-//! This is used to scale down the lightness component of the [`Oklab`] colors when performing color difference.
-//!
-//! A value around `0.325` seems to provide similar results to the CIELAB color space.
-//!
-//! Lightness weights should be in the range `0.0..=1.0`.
-//! A value of `1.0` indicates no scaling and performs color difference in the [`Oklab`] color space using standard euclidean distance.
-//! Otherwise, lower weights have the effect of merging similar colors together, possibly bringing out more distinct hues.
-//! Note that for weights near `0.0`, if the image contains black and white, then they will be averaged into a shade of gray.
-//! Also, the lightness weight affects the final MSE, so it does not make sense to compare two [`KmeansResult`]s using their MSE
-//! if the results came from different lightness weights.
-//!
-//! ## Trials
-//!
-//! This is the number of times to run k-means, taking the trial with the lowest MSE.
-//!
-//! 1 to 3 or 1 to 5 trials is recommended, depending on how much you value accuracy.
-//!
-//! k-means is an approximation algorithm that can get stuck in a local minimum.
-//! So, there is no guarantee that a single run may give a "good enough" result.
-//! Doing multiple runs increases your chance of getting a more optimal result.
-//! However, k-means is also a somewhat expensive operation,
-//! so you probably do not want to set the number of runs too high.
-//!
-//! ## K
-//!
-//! This is the (maximum) number of average colors to find.
-//!
-//! 4 to 16 is likely the range you want for a palette.
-//!
-//! The ideal number of clusters is hard to know in advance, if there even is an "ideal" number.
-//! Lower k values give faster runtime but also typically lower color accuracy.
-//! Higher k values provide higher accuracy, but can potentially give more colors than you need/want.
-//! The [`KmeansResult`] will provide the number of pixels in each centroid,
-//! so this can be used to filter out centroids that make less than a certain percentage of the image.
-//!
-//! ## Convergence Threshold
-//!
-//! After a certain point, the centroids change so little that there is no longer a visual, perceivable difference.
-//! This is the cutoff value used to determine whether any change is significant.
-//!
-//! 0.01 to 0.1 is the recommended range, with lower values indicating higher accuracy.
-//!
-//! A value of `0.1` is very fast (often only a few iterations are needed),
-//! and this should be enough to get a decent looking palette.
-//!
-//! A value of `0.01` is the lowest sensible value for maximum accuracy.
-//! Convergence thresholds should probably be not too far lower than this,
-//! as any iterations after this either do not or barely effect the final colors once converted to [`Srgb`].
-//! I.e., don't use `0.0` as the convergence threshold,
-//! as that may require many more iterations and would just be wasting time.
-//!
-//! ## Max Iterations
-//!
-//! This is the maximum number of iterations allowed for each k-means trial.
-//!
-//! Use 16, 64, 256, or more iterations depending on k, the image size, and the convergence threshold.
-//!
-//! Ideally, k-means should stop due to the convergence threshold,
-//! so you want to choose a high enough maximum iterations that will prevent k-means from stopping early.
-//! But, the number of iterations to reach convergence might be high in some cases,
-//! and the maximum iterations is there to prevent k-means from taking too long.
-//!
-//! ## Seed
-//!
-//! This is the value used to seed the random number generator which is used to choose the initial centroids.
-//!
-//! Provide any arbitrary value like `0`, `42`, or `123456789`.
-
-#![deny(unsafe_code)]
-#![warn(clippy::pedantic, clippy::cargo)]
-#![warn(clippy::use_debug, clippy::dbg_macro, clippy::todo, clippy::unimplemented)]
-#![warn(clippy::unwrap_used, clippy::unwrap_in_result)]
-#![warn(clippy::unneeded_field_pattern, clippy::rest_pat_in_fully_bound_structs)]
-#![warn(clippy::unnecessary_self_imports)]
-#![warn(clippy::str_to_string, clippy::string_to_string, clippy::string_slice)]
-#![warn(missing_docs, clippy::missing_docs_in_private_items, rustdoc::all)]
-#![warn(clippy::float_cmp_const, clippy::lossy_float_literal)]
-#![allow(clippy::module_name_repetitions)]
-#![allow(clippy::many_single_char_names)]
-#![allow(clippy::enum_glob_use)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::wildcard_imports)]
-
-use image::{buffer::ConvertBuffer, DynamicImage, RgbImage, RgbaImage};
-use palette::{IntoColor, Oklab, Srgb, Srgba, WithAlpha};
-#[cfg(feature = "threads")]
-use rayon::prelude::*;
-use std::ops::Range;
-
-mod kmeans;
-pub use kmeans::KmeansResult;
-
-/// Deduplicated [`Oklab`] colors converted from [`Srgb`] colors
-#[derive(Debug, Clone)]
-pub struct OklabCounts {
-	/// [`Oklab`] colors and the corresponding number of duplicate [`Srgb`] pixels
-	pub(crate) color_counts: Vec<(Oklab, u32)>,
-	/// The value used to scale down the lightness of each color
-	pub(crate) lightness_weight: f32,
-}
-
-/// Unsafe utilities for sharing data across multiple threads
-#[cfg(feature = "threads")]
-#[allow(unsafe_code)]
-mod sync_unsafe {
-	use std::cell::UnsafeCell;
-
-	/// Unsafely share a mutable slice across multiple threads
-	pub struct SyncUnsafeSlice<'a, T>(UnsafeCell<&'a mut [T]>);
-
-	unsafe impl<'a, T: Send + Sync> Send for SyncUnsafeSlice<'a, T> {}
-	unsafe impl<'a, T: Send + Sync> Sync for SyncUnsafeSlice<'a, T> {}
-
-	impl<'a, T> SyncUnsafeSlice<'a, T> {
-		/// Create a new [`SyncUnsafeSlice`] with the given slice
-		pub fn new(slice: &'a mut [T]) -> Self {
-			Self(UnsafeCell::new(slice))
-		}
-
-		/// Unsafely write the given value to the given index in the slice
-		///
-		/// # Safety
-		/// It is undefined behaviour if two threads write to the same index without synchronization.
-		pub unsafe fn write(&self, index: usize, value: T) {
-			(*self.0.get())[index] = value;
-		}
-	}
-}
-
-impl OklabCounts {
-	/// Gets the underlying Vec of [`Oklab`] colors and each corresponding [`u32`] count that indicates the number of duplicate [`Srgb`] pixels for the color.
-	/// Each [`Oklab`] color's lightness component is scaled down according to the current `lightness_weight`.
-	#[must_use]
-	pub fn weighted_pairs(&self) -> &Vec<(Oklab, u32)> {
-		&self.color_counts
-	}
-
-	/// Get the number of unique colors which is less than or equal to `2.pow(24)`
-	#[must_use]
-	#[allow(clippy::cast_possible_truncation)]
-	pub fn num_colors(&self) -> u32 {
-		// Only 2^8^3 = 2^24 possible Srgb colors
-		debug_assert!(self.color_counts.len() <= usize::pow(2, 24));
-		self.color_counts.len() as u32
-	}
-
-	/// Get the current lightness weight
-	#[must_use]
-	pub fn lightness_weight(&self) -> f32 {
-		self.lightness_weight
-	}
-
-	/// Set the lightness weight to the provided value which should be in the range `0.0..=1.0`
-	///
-	/// `lightness_weight` is used to scale down each [`Oklab`] color's lightness when performing color difference.
-	pub fn set_lightness_weight(&mut self, weight: f32) {
-		// Values outside this range do not make sense but will technically work, so this is a debug assert
-		debug_assert!((0.0..=1.0).contains(&weight));
-
-		let lightness_weight = self.lightness_weight;
-
-		#[allow(clippy::float_cmp)]
-		if !(weight == lightness_weight
-			|| (weight == 0.0 && lightness_weight == 1.0)
-			|| (weight == 1.0 && lightness_weight == 0.0))
-		{
-			let new_weight = if weight == 0.0 { 1.0 } else { weight };
-			let old_weight = if lightness_weight == 0.0 { 1.0 } else { lightness_weight };
-
-			for color_count in &mut self.color_counts {
-				color_count.0.l = (color_count.0.l / old_weight) * new_weight;
-			}
-		}
-
-		self.lightness_weight = weight;
-	}
-
-	/// Set the lightness weight to the provided value which should be in the range `0.0..=1.0`
-	///
-	/// `lightness_weight` is used to scale down each [`Oklab`] color's lightness when performing color difference.
-	#[must_use]
-	pub fn with_lightness_weight(mut self, lightness_weight: f32) -> Self {
-		self.set_lightness_weight(lightness_weight);
-		self
-	}
-
-	/// Computes the prefix sum of an array in place
-	#[inline]
-	fn prefix_sum<const N: usize>(counts: &mut [u32; N]) {
-		for i in 1..N {
-			counts[i] += counts[i - 1];
-		}
-	}
-
-	/// Return a [`Range`] over the `i`-th chunk by doing necessary conversions/casts
-	#[inline]
-	fn get_chunk(chunks: &[u32], i: usize) -> Range<usize> {
-		(chunks[i] as usize)..(chunks[i + 1] as usize)
-	}
-
-	/*
-		The following preprocessing step is arguably the most important section with regards to running time.
-		This function will deduplicate the provided pixels using a partial radix sort
-		and then finally convert the unique Srgb colors to the Oklab color space.
-
-		Why do we deduplicate?
-		1.
-			The running time of each k-means iteration is O(n * k * d)
-			where n is the number of data points, pixels in this case.
-			For many images the number of unique colors is 16 to 60 times less than the number of pixels.
-			So, this alone already results in a massive speedup.
-
-		2.
-			Converting from Srgb to Oklab is expensive.
-			Each Srgb pixel first needs to be linearized, this takes a 6 floating point operations and 3 powf() calls.
-			The linearized color is then converted to Oklab which takes another 36 flops and 3 cbrt() calls.
-			By converting only after deduplicating, this also greatly reduces the running time.
-
-		Why do we use a radix sort based approach opposed to, e.g., a HashMap approach?
-		1.
-			It's faster -- who would've guessed!
-			It's hard to beat the speed of radix sort. The overhead of a HashMap is too large in this case.
-
-		2.
-			It gives a roughly 20% time reduction for the later k-means algorithm compared to the HashMap approach.
-			My guess is that the sorting approach will group similar colors together,
-			thereby decreasing the number of branch mispredictions in k-means.
-			Collecting a Vec from a HashMap, on the other hand, may give pixels in any random order.
-
-		3.
-			Because of the random iteration order for HashMaps, the HashMap approach may provide different results
-			for different numbers of threads. Ultimately, this would affect the final k-means results.
-			The radix sort approach, on the other hand, will provide the same result regardless of the number of threads.
-
-		One thing to note is that the radix approach may be slower for (very?) small inputs/images,
-		but the goal is to reduce the time for large inputs where the difference can be most felt.
-	*/
-
-	/// Create an [`OklabCounts`] from a slice of [`Srgb`] colors
-	///
-	/// # Errors
-	/// An `Error` is returned if the length of `pixels` is greater than `u32::MAX`.
-	/// Otherwise, the result can be safely unwrapped.
-	#[cfg(feature = "threads")]
-	pub fn try_from_srgb(pixels: &[Srgb<u8>]) -> Result<Self, std::num::TryFromIntError> {
-		if pixels.is_empty() {
-			Ok(OklabCounts {
-				color_counts: Vec::new(),
-				lightness_weight: 1.0,
-			})
-		} else {
-			/// A byte-sized Radix
-			const RADIX: usize = u8::MAX as usize + 1;
-
-			u32::try_from(pixels.len())?;
-
-			// for some reason in a par_iter().fold() or even a regular iter().fold(),
-			// the compiler dies when trying to optimize:
-			//
-			// .fold([0; RADIX + 1], |mut sums, x| {
-			//   sums[usize::from(x)] += 1;
-			//   sums
-			// })
-			//
-			// Output from Godbolt shows that the compiler:
-			// 1. Does not unroll the loop/fold
-			// 2. Calls two extra functions inside the loop body?
-			//
-			// Without the par_chunks() workaround below, the code would be literally 10 times as slow.
-			let threads = rayon::current_num_threads();
-			let chunk_size = (pixels.len() + threads - 1) / threads;
-			let mut red_prefixes = {
-				let mut red_prefixes = pixels
-					.par_chunks(chunk_size)
-					.map(|chunk| {
-						let mut counts = [0; RADIX];
-						for rgb in chunk {
-							counts[usize::from(rgb.red)] += 1;
-						}
-						counts
-					})
-					.collect::<Vec<_>>();
-
-				let mut carry = 0;
-				for i in 0..RADIX {
-					red_prefixes[0][i] += carry;
-					for j in 1..red_prefixes.len() {
-						red_prefixes[j][i] += red_prefixes[j - 1][i];
-					}
-					carry = red_prefixes[red_prefixes.len() - 1][i];
-				}
-
-				red_prefixes
-			};
-
-			let red_prefix = {
-				let mut prefix = [0; RADIX + 1];
-				prefix[1..].copy_from_slice(&red_prefixes[red_prefixes.len() - 1]);
-				prefix
-			};
-
-			let mut green_blue = vec![(0, 0); pixels.len()];
-			{
-				let green_blue = sync_unsafe::SyncUnsafeSlice::new(&mut green_blue);
-
-				// Prefix sums ensure that each location in green_blue is written to only once
-				// and is therefore safe to write to without any form of synchronization.
-				#[allow(unsafe_code)]
-				pixels
-					.par_chunks(chunk_size)
-					.zip(&mut red_prefixes)
-					.for_each(|(chunk, red_prefix)| {
-						for rgb in chunk {
-							let r = usize::from(rgb.red);
-							let i = red_prefix[r] - 1;
-							unsafe { green_blue.write(i as usize, (rgb.green, rgb.blue)) };
-							red_prefix[r] = i;
-						}
-					});
-			}
-
-			let color_counts = (0..RADIX)
-				.into_par_iter()
-				.flat_map(|r| {
-					let chunk = Self::get_chunk(&red_prefix, r);
-
-					let mut color_counts = Vec::new();
-
-					if !chunk.is_empty() {
-						let mut green_prefix = [0; RADIX + 1];
-						let mut blue_counts = [0; RADIX];
-						let mut blue = vec![0; chunk.len()];
-
-						for &(green, _) in &green_blue[chunk.clone()] {
-							green_prefix[usize::from(green)] += 1;
-						}
-
-						Self::prefix_sum(&mut green_prefix);
-
-						for &(g, b) in &green_blue[chunk] {
-							let g = usize::from(g);
-							let i = green_prefix[g] - 1;
-							blue[i as usize] = b;
-							green_prefix[g] = i;
-						}
-
-						for g in 0..RADIX {
-							let chunk = Self::get_chunk(&green_prefix, g);
-
-							if !chunk.is_empty() {
-								for &b in &blue[chunk] {
-									blue_counts[usize::from(b)] += 1;
-								}
-
-								for (b, &count) in blue_counts.iter().enumerate() {
-									if count > 0 {
-										#[allow(clippy::cast_possible_truncation)]
-										let srgb = Srgb::new(r as u8, g as u8, b as u8);
-										let oklab: Oklab = srgb.into_linear().into_color();
-										color_counts.push((oklab, count));
-									}
-								}
-
-								blue_counts = [0; RADIX];
-							}
-						}
-					}
-
-					color_counts
-				})
-				.collect::<Vec<_>>();
-
-			Ok(OklabCounts { color_counts, lightness_weight: 1.0 })
-		}
-	}
-
-	/// Create an [`OklabCounts`] from a slice of [`Srgb`] colors
-	///
-	/// # Errors
-	/// An `Error` is returned if the length of `pixels` is greater than `u32::MAX`.
-	/// Otherwise, the result can be safely unwrapped.
-	#[cfg(not(feature = "threads"))]
-	pub fn try_from_srgb(pixels: &[Srgb<u8>]) -> Result<Self, std::num::TryFromIntError> {
-		if pixels.is_empty() {
-			Ok(OklabCounts {
-				color_counts: Vec::new(),
-				lightness_weight: 1.0,
-			})
-		} else {
-			/// A byte-sized Radix
-			const RADIX: usize = u8::MAX as usize + 1;
-
-			let n = u32::try_from(pixels.len())?;
-
-			let mut color_counts = Vec::new();
-
-			let mut green_blue = vec![(0, 0); pixels.len()];
-			let mut blue = Vec::new();
-
-			let mut red_prefix = [0; RADIX + 1];
-			let mut green_prefix = [0; RADIX + 1];
-			let mut blue_counts = [0; RADIX];
-
-			// Excuse the manual unrolling below...
-
-			for rgb in pixels {
-				red_prefix[usize::from(rgb.red)] += 1;
-			}
-
-			Self::prefix_sum(&mut red_prefix);
-
-			for rgb in pixels {
-				let r = usize::from(rgb.red);
-				let i = red_prefix[r] - 1;
-				green_blue[i as usize] = (rgb.green, rgb.blue);
-				red_prefix[r] = i;
-			}
-			red_prefix[RADIX] = n;
-
-			for r in 0..RADIX {
-				let chunk = Self::get_chunk(&red_prefix, r);
-
-				if !chunk.is_empty() {
-					blue.resize(chunk.len(), 0);
-
-					for &(green, _) in &green_blue[chunk.clone()] {
-						green_prefix[usize::from(green)] += 1;
-					}
-
-					Self::prefix_sum(&mut green_prefix);
-
-					for &(g, b) in &green_blue[chunk.clone()] {
-						let g = usize::from(g);
-						let i = green_prefix[g] - 1;
-						blue[i as usize] = b;
-						green_prefix[g] = i;
-					}
-					#[allow(clippy::cast_possible_truncation)]
-					let chunk_len = chunk.len() as u32;
-					green_prefix[RADIX] = chunk_len;
-
-					for g in 0..RADIX {
-						let chunk = Self::get_chunk(&green_prefix, g);
-
-						if !chunk.is_empty() {
-							for &b in &blue[chunk] {
-								blue_counts[usize::from(b)] += 1;
-							}
-
-							for (b, &count) in blue_counts.iter().enumerate() {
-								if count > 0 {
-									#[allow(clippy::cast_possible_truncation)]
-									let srgb = Srgb::new(r as u8, g as u8, b as u8);
-									let oklab: Oklab = srgb.into_linear().into_color();
-									color_counts.push((oklab, count));
-								}
-							}
-
-							blue_counts = [0; RADIX];
-						}
-					}
-
-					green_prefix = [0; RADIX + 1];
-				}
-			}
-
-			Ok(OklabCounts { color_counts, lightness_weight: 1.0 })
-		}
-	}
-
-	/// Create an [`OklabCounts`] from a slice of [`Srgba`] colors
-	///
-	/// Colors with an alpha value less than `alpha_threshold` are excluded from the resulting [`OklabCounts`].
-	///
-	/// # Errors
-	/// An `Error` is returned if the length of `pixels` is greater than `u32::MAX`.
-	/// Otherwise, the result can be safely unwrapped.
-	#[cfg(feature = "threads")]
-	pub fn try_from_srgba(pixels: &[Srgba<u8>], alpha_threshold: u8) -> Result<Self, std::num::TryFromIntError> {
-		Self::try_from_srgb(
-			&pixels
-				.par_iter()
-				.filter_map(|c| {
-					if c.alpha >= alpha_threshold {
-						Some(c.without_alpha())
-					} else {
-						None
-					}
-				})
-				.collect::<Vec<_>>(),
-		)
-	}
-
-	/// Create an [`OklabCounts`] from a slice of [`Srgba`] colors
-	///
-	/// Colors with an alpha value less than `alpha_threshold` are excluded from the resulting [`OklabCounts`].
-	///
-	/// # Errors
-	/// An `Error` is returned if the length of `pixels` is greater than `u32::MAX`.
-	/// Otherwise, the result can be safely unwrapped.
-	#[cfg(not(feature = "threads"))]
-	pub fn try_from_srgba(pixels: &[Srgba<u8>], alpha_threshold: u8) -> Result<Self, std::num::TryFromIntError> {
-		Self::try_from_srgb(
-			&pixels
-				.iter()
-				.filter_map(|c| {
-					if c.alpha >= alpha_threshold {
-						Some(c.without_alpha())
-					} else {
-						None
-					}
-				})
-				.collect::<Vec<_>>(),
-		)
-	}
-
-	/// Create an [`OklabCounts`] from a `RgbImage`
-	///
-	/// # Errors
-	/// An `Error` is returned if the number of pixels in `image` is greater than `u32::MAX`.
-	/// Otherwise, the result can be safely unwrapped.
-	pub fn try_from_rgbimage(image: &RgbImage) -> Result<Self, std::num::TryFromIntError> {
-		Self::try_from_srgb(palette::cast::from_component_slice(image.as_raw()))
-	}
-
-	/// Create an [`OklabCounts`] from a `RgbaImage`
-	///
-	/// Pixels with an alpha value less than `alpha_threshold` are excluded from the resulting [`OklabCounts`].
-	///
-	/// # Errors
-	/// An `Error` is returned if the number of pixels in `image` is greater than `u32::MAX`.
-	/// Otherwise, the result can be safely unwrapped.
-	pub fn try_from_rgbaimage(image: &RgbaImage, alpha_threshold: u8) -> Result<Self, std::num::TryFromIntError> {
-		if alpha_threshold == 0 {
-			Self::try_from_rgbimage(&image.convert())
-		} else {
-			Self::try_from_srgba(palette::cast::from_component_slice(image.as_raw()), alpha_threshold)
-		}
-	}
-
-	/// Create an [`OklabCounts`] from a `DynamicImage`
-	///
-	/// Pixels with an alpha value less than `alpha_threshold` are excluded from the resulting [`OklabCounts`].
-	/// Of course, if the image does not have an alpha channel, then `alpha_threshold` is ignored.
-	///
-	/// # Errors
-	/// An `Error` is returned if the number of pixels in `image` is greater than `u32::MAX`.
-	/// Otherwise, the result can be safely unwrapped.
-	pub fn try_from_image(image: &DynamicImage, alpha_threshold: u8) -> Result<Self, std::num::TryFromIntError> {
-		use image::DynamicImage::*;
-		match image {
-			&ImageLuma8(_) | &ImageLuma16(_) | &ImageRgb8(_) | &ImageRgb16(_) | &ImageRgb32F(_) => {
-				Self::try_from_rgbimage(&image.to_rgb8())
-			},
-
-			&ImageLumaA8(_) | &ImageLumaA16(_) | &ImageRgba8(_) | &ImageRgba16(_) | &ImageRgba32F(_)
-				if alpha_threshold == 0 =>
-			{
-				Self::try_from_rgbimage(&image.to_rgb8())
-			},
-
-			&ImageLumaA8(_) | &ImageLumaA16(_) | &ImageRgba8(_) | &ImageRgba16(_) | &ImageRgba32F(_) => {
-				Self::try_from_rgbaimage(&image.to_rgba8(), alpha_threshold)
-			},
-
-			_ if alpha_threshold == 0 => Self::try_from_rgbimage(&image.to_rgb8()),
-
-			_ => Self::try_from_rgbaimage(&image.to_rgba8(), alpha_threshold),
-		}
-	}
-}
-
-/// Runs k-means on a [`OklabCounts`].
+//! If the `threads` feature is enabled, parallel versions of the palette functions
+//! are available:
+//! - [`Okolors::srgb8_palette_par`]
+//! - [`Okolors::srgb_palette_par`]
+//! - [`Okolors::oklab_palette_par`]
+
+#![deny(unsafe_code, unsafe_op_in_unsafe_fn)]
+#![warn(
+    clippy::pedantic,
+    clippy::cargo,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::todo,
+    clippy::unimplemented,
+    clippy::unwrap_used,
+    clippy::unwrap_in_result,
+    clippy::expect_used,
+    clippy::unneeded_field_pattern,
+    clippy::rest_pat_in_fully_bound_structs,
+    clippy::unnecessary_self_imports,
+    clippy::str_to_string,
+    clippy::string_to_string,
+    clippy::string_slice,
+    missing_docs,
+    clippy::missing_docs_in_private_items,
+    rustdoc::all,
+    clippy::float_cmp_const,
+    clippy::lossy_float_literal
+)]
+#![allow(
+    clippy::doc_markdown,
+    clippy::module_name_repetitions,
+    clippy::many_single_char_names,
+    clippy::missing_panics_doc,
+    clippy::unreadable_literal
+)]
+
+use palette::{
+    encoding::{self, FromLinear},
+    rgb::RgbStandard,
+    FromColor, LinSrgb, Oklab, Srgb,
+};
+use quantette::{
+    kmeans::{self, Centroids},
+    wu::{self, FloatBinner},
+    AboveMaxLen, ColorSlice, ColorSpace, PaletteSize, UniqueColorCounts,
+};
+
+#[cfg(feature = "image")]
+use image::RgbImage;
+
+/// A builder struct to specify options for palette generation.
 ///
-/// See the crate documentation for examples and information on each parameter.
-#[must_use]
-pub fn run(
-	oklab_counts: &OklabCounts,
-	trials: u32,
-	k: u8,
-	convergence_threshold: f32,
-	max_iter: u32,
-	seed: u64,
-) -> KmeansResult {
-	kmeans::run(oklab_counts, trials, k, convergence_threshold, max_iter, seed)
+/// # Examples
+/// ```no_run
+/// # use okolors::Okolors;
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let img = image::open("some image")?.into_rgb8();
+/// let palette = Okolors::try_from(&img)?
+///     .palette_size(16.into())
+///     .lightness_weight(0.5)
+///     .sampling_factor(0.25)
+///     .seed(42)
+///     .srgb8_palette();
+/// # Ok(())
+/// # }
+/// ```
+pub struct Okolors<'a> {
+    /// The colors to create a palette from.
+    colors: ColorSlice<'a, Srgb<u8>>,
+    /// The amount to scale down the lightness component by.
+    lightness_weight: f32,
+    /// The number of colors to have in the palette.
+    palette_size: PaletteSize,
+    /// The percentage of the unique colors to sample.
+    sampling_factor: f32,
+    /// The batch size for parallel k-means.
+    #[allow(unused)]
+    batch_size: u32,
+    /// The seed value for the random number generator.
+    seed: u64,
+}
+
+impl<'a> From<ColorSlice<'a, Srgb<u8>>> for Okolors<'a> {
+    fn from(slice: ColorSlice<'a, Srgb<u8>>) -> Self {
+        Self::new(slice)
+    }
+}
+
+impl<'a> TryFrom<&'a [Srgb<u8>]> for Okolors<'a> {
+    type Error = AboveMaxLen<u32>;
+
+    fn try_from(slice: &'a [Srgb<u8>]) -> Result<Self, Self::Error> {
+        Ok(Self::new(slice.try_into()?))
+    }
+}
+
+#[cfg(feature = "image")]
+impl<'a> TryFrom<&'a RgbImage> for Okolors<'a> {
+    type Error = AboveMaxLen<u32>;
+
+    fn try_from(image: &'a RgbImage) -> Result<Self, Self::Error> {
+        Ok(Self::new(image.try_into()?))
+    }
+}
+
+impl<'a> Okolors<'a> {
+    /// Creates a new [`Okolors`] with default options.
+    ///
+    /// See [`ColorSlice`] for examples on how to create it.
+    ///
+    /// Alternatively, use `Okolors::try_from` or
+    /// `try_into` on an [`RgbImage`] or slice of [`Srgb<u8>`].
+    #[must_use]
+    pub fn new(colors: ColorSlice<'a, Srgb<u8>>) -> Self {
+        Self {
+            colors,
+            lightness_weight: 0.325,
+            palette_size: 8.into(),
+            sampling_factor: 0.5,
+            batch_size: 4096,
+            seed: 0,
+        }
+    }
+
+    /// Sets the lightness weight used to scale down the lightness component of the colors.
+    ///
+    /// The brightness of colors has more influence on the perceived difference between colors.
+    /// So, the generated the palette may contain colors that differ mainly in brightness only.
+    /// The lightness weight is used scale down the lightness component of the colors,
+    /// potentially bringing out more distinct hues in the final color palette.
+    /// One downside to this is that colors near white and black may be merged into a shade of gray.
+    ///
+    /// The provided `lightness_weight` should be in the range `0.0..=1.0`,
+    /// and it is clamped to this range otherwise.
+    ///
+    /// The default lightness weight is `0.325`.
+    pub fn lightness_weight(&mut self, lightness_weight: f32) -> &mut Self {
+        self.lightness_weight = lightness_weight.clamp(f32::EPSILON, 1.0);
+        self
+    }
+
+    /// Sets the palette size which determines the (maximum) number of colors to have in the palette.
+    ///
+    /// The default palette size is `8`.
+    pub fn palette_size(&mut self, palette_size: PaletteSize) -> &mut Self {
+        self.palette_size = palette_size;
+        self
+    }
+
+    /// Sets the sampling factor which controls what percentage of the unique colors to sample.
+    ///
+    /// Higher sampling factors take longer but give more accurate results.
+    /// Sampling factors can be above `1.0`, but this may not give noticeably better results.
+    ///
+    /// The default sampling factor is `0.5`, that is, to sample half of the colors.
+    pub fn sampling_factor(&mut self, sampling_factor: f32) -> &mut Self {
+        self.sampling_factor = sampling_factor;
+        self
+    }
+
+    /// Sets the seed value for the random number generator.
+    ///
+    /// The default seed is `0`.
+    pub fn seed(&mut self, seed: u64) -> &mut Self {
+        self.seed = seed;
+        self
+    }
+
+    /// Create the [`Oklab`] binner for the current lightness weight.
+    fn binner(&self) -> FloatBinner<f32, 32> {
+        let mut ranges = ColorSpace::OKLAB_F32_COMPONENT_RANGES_FROM_SRGB;
+        ranges[0].1 *= self.lightness_weight;
+        FloatBinner::new(ranges)
+    }
+
+    /// Returns the number of samples based off the samplling factor.
+    fn num_samples(&self, unique: &UniqueColorCounts<Oklab, f32, 3>) -> u32 {
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        {
+            (f64::from(self.sampling_factor) * f64::from(unique.total_count())) as u32
+        }
+    }
+
+    /// Unapply the lightness weight to get the final palette colors.
+    fn unscale_lightness(&self, mut palette: Vec<Oklab>) -> Vec<Oklab> {
+        for color in &mut palette {
+            color.l /= self.lightness_weight;
+        }
+        palette
+    }
+
+    /// Computes the [`Oklab`] color palette.
+    #[must_use]
+    pub fn oklab_palette(&self) -> Vec<Oklab> {
+        let Self {
+            lightness_weight,
+            colors,
+            palette_size,
+            seed,
+            ..
+        } = *self;
+
+        let unique = UniqueColorCounts::new(colors, |srgb| {
+            let mut oklab = Oklab::from_color(srgb.into_linear());
+            oklab.l *= lightness_weight;
+            oklab
+        });
+
+        let palette = wu::palette(&unique, palette_size, &self.binner()).palette;
+        let samples = self.num_samples(&unique);
+
+        let palette = if samples == 0 {
+            palette
+        } else {
+            let centroids = Centroids::from_truncated(palette);
+            kmeans::palette(&unique, samples, centroids, seed).palette
+        };
+
+        self.unscale_lightness(palette)
+    }
+
+    /// Convert an [`Oklab`] palette to an [`Srgb`] palette.
+    #[must_use]
+    fn convert_palette<T>(oklab: Vec<Oklab>) -> Vec<Srgb<T>>
+    where
+        <encoding::Srgb as RgbStandard>::TransferFn: FromLinear<f32, T>,
+    {
+        oklab
+            .into_iter()
+            .map(|oklab| LinSrgb::from_color(oklab).into_encoding())
+            .collect()
+    }
+
+    /// Computes the [`Srgb<u8>`] color palette.
+    #[must_use]
+    pub fn srgb8_palette(&self) -> Vec<Srgb<u8>> {
+        Self::convert_palette(self.oklab_palette())
+    }
+
+    /// Computes the [`Srgb`] color palette.
+    #[must_use]
+    pub fn srgb_palette(&self) -> Vec<Srgb> {
+        Self::convert_palette(self.oklab_palette())
+    }
+}
+
+#[cfg(feature = "threads")]
+impl<'a> Okolors<'a> {
+    /// Sets the batch size which determines the number of samples to group together in k-means.
+    ///
+    /// Increasing the batch size reduces the running time but with dimishing returns.
+    /// Smaller batch sizes are more accurate but slower to run.
+    ///
+    /// The default batch size is `4096`.
+    pub fn batch_size(&mut self, batch_size: u32) -> &mut Self {
+        self.batch_size = batch_size;
+        self
+    }
+
+    /// Computes the [`Oklab`] color palette in parallel.
+    #[must_use]
+    pub fn oklab_palette_par(&self) -> Vec<Oklab> {
+        let Self {
+            colors,
+            lightness_weight,
+            palette_size,
+            batch_size,
+            seed,
+            ..
+        } = *self;
+
+        let unique = UniqueColorCounts::new_par(colors, |srgb| {
+            let mut oklab = Oklab::from_color(srgb.into_linear());
+            oklab.l *= lightness_weight;
+            oklab
+        });
+
+        let palette = wu::palette_par(&unique, palette_size, &self.binner()).palette;
+        let samples = self.num_samples(&unique);
+
+        let palette = if samples < batch_size {
+            palette
+        } else {
+            let centroids = Centroids::from_truncated(palette);
+            kmeans::palette_par(&unique, samples, batch_size, centroids, seed).palette
+        };
+
+        self.unscale_lightness(palette)
+    }
+
+    /// Computes the [`Srgb<u8>`] color palette in parallel.
+    #[must_use]
+    pub fn srgb8_palette_par(&self) -> Vec<Srgb<u8>> {
+        Self::convert_palette(self.oklab_palette_par())
+    }
+
+    /// Computes the [`Srgb`] color palette in parallel.
+    #[must_use]
+    pub fn srgb_palette_par(&self) -> Vec<Srgb> {
+        Self::convert_palette(self.oklab_palette_par())
+    }
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
-	use super::*;
-	use approx::assert_relative_eq;
-	use palette::WithAlpha;
+    use super::*;
 
-	fn test_colors() -> Vec<Srgb<u8>> {
-		let range = (0..u8::MAX).step_by(16);
-		let mut colors = Vec::with_capacity(range.len().pow(3));
+    use palette::{cast::ComponentsInto, Srgb};
 
-		for r in range.clone() {
-			for g in range.clone() {
-				for b in range.clone() {
-					colors.push(Srgb::new(r, g, b));
-				}
-			}
-		}
+    #[rustfmt::skip]
+    fn test_colors() -> Vec<Srgb<u8>> {
+        vec![
+            92, 88, 169, 165, 149, 73, 71, 40, 98, 83, 27, 26, 60, 128, 246, 159, 239, 169, 96, 30, 166, 176, 222, 97, 90, 70, 180, 179, 50, 228, 181, 40, 254, 145, 9, 78, 245, 233, 56, 84, 53, 206, 200, 144, 18, 254, 153, 172, 223, 72, 106, 137, 14, 80, 239, 226, 123, 194, 101, 45, 76, 50, 123, 191, 174, 48, 111, 113, 179, 128, 130, 102, 126, 243, 217, 64, 200, 191, 229, 251, 214, 70, 3, 67, 144, 244, 134, 135, 56, 56, 32, 221, 192, 216, 13, 56, 44, 181, 97, 110, 206, 127, 119, 110, 175, 195, 190, 120, 38, 123, 177, 226, 54, 223, 196, 60, 106, 167, 18, 123, 227, 127, 16, 204, 120, 122, 75, 30, 230, 142, 31, 217, 182, 59, 187, 239, 108, 11, 85, 49, 145, 24, 23, 185, 43, 69, 179, 66, 140, 107, 226, 19, 91, 101, 220, 155, 253, 116, 238, 117, 110, 200, 0, 193, 15, 153, 4, 67, 15, 187, 210, 42, 179, 90, 84, 90, 172, 128, 20, 92, 6, 170, 137, 172, 90, 43, 22, 234, 31, 212, 91, 47, 185, 27, 142, 187, 223, 24, 113, 208, 177, 70, 85, 100, 120, 77, 38, 204, 203, 121, 212, 36, 92, 244, 70, 138, 212, 17, 75, 240, 39, 75, 186, 221, 115, 240, 170, 63, 74, 224, 227, 120, 211, 88, 232, 2, 147, 156, 32, 28, 127, 238, 114, 31, 29, 255, 173, 73, 182, 101, 9, 111, 42, 139, 70, 15, 233, 172, 133, 223, 175, 178, 90, 98, 195, 53, 125, 208, 3, 253, 237, 181, 133, 4, 199, 253, 221, 58, 124, 99, 126, 239, 253, 151, 224, 24, 73, 6, 86, 161, 76, 151, 255, 10, 23, 65, 32, 210, 248, 81, 38, 48, 9, 108, 199, 14, 138, 170, 35, 55, 108, 6, 88, 188, 118, 195, 26, 8, 130, 175, 179, 227, 196, 145, 207, 102, 19, 216, 220, 45, 202, 154, 21, 156, 170, 212, 94, 215, 116, 193, 90, 180, 171, 47, 21, 77, 23, 123, 44, 78, 143, 42, 2, 74, 255, 133, 118, 33, 155, 111, 202, 64, 45, 63, 63, 214, 96, 139, 135, 219, 245, 179, 192, 127, 60, 35, 241, 104, 248, 230, 223, 6, 62, 218, 80, 205, 120, 184, 35, 154, 32, 105, 114, 8, 41, 111, 62, 6, 25, 95, 92, 58, 93, 240, 248, 169, 200, 218, 52, 158, 14, 14, 55, 250, 127, 136, 121, 102, 27, 182, 227, 205, 181, 76, 120, 153, 207, 142, 125, 169, 141, 124, 248, 169, 158, 190, 9, 3, 167, 93, 100, 181, 73, 103, 242, 153, 223, 185, 64, 151, 120, 186, 169, 4, 95, 137, 88, 82, 119, 205, 53, 97, 74, 55, 163, 232, 225, 60, 124, 248, 135, 218, 11, 99, 85, 108, 37, 178, 126, 222, 178, 80, 48, 13, 176, 179, 111, 243, 161, 245, 57, 252, 241, 40, 10, 190, 17, 17, 249, 108, 253, 70, 237, 119, 123, 113, 103, 9, 45, 60, 51, 160, 48, 191, 237, 109, 32, 124, 31, 32, 145, 68, 99, 149, 15, 91, 186, 160, 185, 96, 217, 110, 125, 187, 124, 68, 118, 32, 105, 9, 88, 87, 75, 48, 142, 194, 190, 54, 40, 20, 194, 46, 29, 75, 253, 48, 216, 170, 184, 118, 169, 51, 41, 244, 153, 147, 59, 133, 237, 163, 69, 114, 5, 61, 88, 110, 154, 83, 77, 107, 102, 152, 56, 33, 46, 158, 66, 129, 180, 36, 189, 131, 94, 233, 145, 10, 17, 168, 110, 47, 85, 84, 124, 120, 116, 168, 215, 178, 188, 159, 198, 245, 139, 42, 255, 56, 252, 77, 191, 14, 217, 108, 180, 44, 112, 245, 122, 189, 242, 41, 78, 218, 155, 241, 116, 244, 82, 192, 128, 86, 138, 175, 245, 51, 210, 2, 123, 114, 95, 113, 201, 86, 112, 68, 23, 18, 31, 146, 47, 222, 247, 251, 120, 59, 243, 239, 201, 115, 166, 126, 189, 227, 238, 204, 127, 11, 5, 52, 196, 63, 46, 149, 184, 150, 122, 143, 215, 1, 115, 164, 99, 238, 166, 1, 21, 132, 88, 117, 104, 88, 216, 106, 132, 233, 31, 41, 160, 153, 89, 180, 66, 151, 201, 50, 164, 208, 15, 160, 43, 43, 205, 204, 148, 178, 102, 188, 72, 46, 251, 40, 137, 184, 252, 241, 224, 101, 17, 77, 157, 83, 96, 93, 211, 83, 209, 73, 112, 195, 74, 91, 54, 41, 168, 129, 87, 81, 149, 63, 173, 37, 36, 112, 184, 36, 28, 8, 129, 153, 124, 27, 134, 50, 134, 24, 205, 118, 68, 60, 59, 214, 39, 78, 18, 243, 225, 206, 19, 125, 90, 210, 225, 249, 254, 210, 125, 34, 224, 203, 42, 126, 3, 126, 107, 10, 121, 113, 207, 234, 248, 44, 31, 158, 223, 128, 47, 147, 61, 0, 63, 44, 84, 252, 39, 69, 75, 190, 129, 116, 40, 198, 230, 137, 53, 130, 106, 68, 194, 233, 58, 197, 160, 130, 205, 169, 243, 118, 175, 252, 67, 251, 81, 20, 108, 22, 247, 161, 8, 50, 37, 224, 251, 154, 197, 172, 93, 113, 46, 206, 148, 47, 119, 102, 140, 82, 128, 115, 144, 250, 77, 110, 152, 182, 160, 44, 131, 202, 202, 130, 6, 187, 152, 19, 208, 179, 185, 78, 9, 124, 55, 17, 76, 70, 38, 94, 105, 152, 240, 85, 248, 246, 66, 39, 226, 25, 112, 7, 112, 123, 107, 179, 237, 82, 212, 236, 167, 236, 231, 103, 123, 133, 224, 169, 146, 235, 91, 49, 231, 69, 160, 6, 254, 137, 35, 207, 148, 223, 206, 250, 143, 189, 47, 132, 122, 163, 94, 39, 176, 108, 66, 163, 206, 247, 201, 87, 229, 10, 124, 164, 235, 6, 76, 188, 117, 127, 67, 217, 124, 24, 184, 114, 206, 145, 197, 108, 219, 3, 225, 89, 154, 25, 112, 11, 56, 213, 39, 21, 231, 5, 180, 33, 52, 155, 249, 221, 100, 39, 79, 150, 55, 196, 150, 1, 135, 185, 227, 26, 218, 153, 80, 17, 167, 90, 227, 172, 229, 129, 113, 31, 200, 121, 23, 223, 155, 73, 242, 66, 79, 220, 29, 78, 179, 185, 170, 111, 87, 245, 196, 208, 94, 108, 25, 31, 92, 212, 68, 252, 164, 6, 63, 214, 206, 226, 6, 172, 175, 170, 141, 236, 152, 139, 48, 178, 195, 137, 95, 47, 204, 47, 38, 78, 203, 24, 240, 73, 83, 191, 145, 29, 20, 161, 27, 142, 205, 65, 205, 169, 138, 148, 45, 124, 59, 114, 108, 6, 70, 100, 229, 220, 191, 68, 105, 3, 159, 13, 13, 195, 103, 203, 41, 242, 137, 153, 202, 121, 135, 252, 167, 154, 57, 234, 75, 163, 219, 195, 72, 100, 5, 67, 223, 207, 195, 0, 189, 48, 63, 101, 91, 80, 37, 151, 18, 5, 41, 109, 77, 222, 164, 85, 53, 189, 164, 66, 217, 195, 183, 41, 220, 251, 1, 76, 133, 72, 114, 24, 110, 73, 23, 105, 220, 61, 248, 148, 52, 130, 134, 84, 252, 181, 80, 180, 152, 166, 116, 248, 23, 16, 51, 227, 195, 249, 178, 163, 178, 70, 226, 79, 113, 6, 61, 122, 56, 99, 40, 22, 37, 58, 58, 150, 13, 63, 35, 59, 115, 139, 195, 222, 162, 160, 186, 57, 118, 5, 104, 79, 235, 174, 84, 123, 79, 221, 25, 149, 110, 116, 16, 215, 43, 153, 87, 86, 20, 174, 42, 238, 248, 66, 23, 25, 31, 112, 17, 83, 14, 112, 24, 37, 126, 66, 64, 6, 47, 207, 32, 184, 1, 237, 52, 79, 135, 204, 219, 180, 208, 18, 106, 87, 70, 50, 20, 168, 205, 89, 245, 38, 207, 136, 192, 179, 142, 82, 248, 42, 104, 39, 155, 214, 253, 34, 69, 14, 200, 1, 244, 210, 59, 193, 90, 161, 137, 48, 46, 172, 160, 75, 175, 194, 212, 76, 215, 236, 98, 144, 255, 206, 143, 141, 53, 238, 64, 6, 22, 164, 17, 244, 88, 73, 47, 197, 130, 24, 13, 234, 207, 117, 122, 244, 175, 250, 238, 244, 149, 206, 63, 112, 202, 102, 201, 224, 100, 79, 195, 126, 120, 237, 55, 67, 90, 246, 239, 248, 222, 137, 216, 194, 107, 213, 8, 182, 98, 69, 216, 200, 218, 252, 135, 201, 253, 194, 17, 70, 89, 250, 185, 50, 72, 127, 224, 225, 112, 67, 82, 20, 196, 114, 118, 85, 86, 119, 71, 31, 220, 197, 92, 5, 246, 208, 110, 141, 182, 174, 119, 56, 74, 238, 234, 216, 7, 11, 251, 158, 0, 43, 192, 4, 227, 62, 135, 161, 164, 221, 82, 99, 89, 216, 194, 79, 236, 14, 127, 255, 191, 142, 143, 229, 23, 206, 20, 61, 73, 165, 47, 235, 205, 47, 215, 247, 106, 239, 172, 116, 150, 140, 191, 53, 146, 68, 114, 173, 62, 204, 232, 115, 130, 35, 154, 22, 248, 180, 85, 178, 151, 236, 28, 46, 23, 212, 219, 82, 214, 239, 34, 102, 18, 58, 153, 241, 28, 133, 58, 226, 176, 255, 177, 208, 21, 118, 200, 119, 38, 14, 164, 74, 174, 112, 32, 191
+        ].components_into()
+    }
 
-		colors
-	}
+    #[test]
+    fn zero_lightness_weight() {
+        let colors = test_colors();
+        let palette = Okolors::try_from(colors.as_slice())
+            .unwrap()
+            .lightness_weight(0.0)
+            .oklab_palette();
 
-	fn assert_oklab_counts_eq(expected: &OklabCounts, result: &OklabCounts) {
-		assert_eq!(expected.lightness_weight, result.lightness_weight);
+        assert!(!palette.into_iter().any(|oklab| oklab.l.is_nan()));
+    }
 
-		for (expected, color) in expected.color_counts.iter().zip(&result.color_counts) {
-			assert_relative_eq!(expected.0, color.0);
-			assert_eq!(expected.1, color.1);
-		}
-	}
+    #[test]
+    fn not_enough_colors() {
+        let colors = test_colors();
+        let k = 100;
+        let palette = Okolors::try_from(&colors[..k])
+            .unwrap()
+            .palette_size(PaletteSize::MAX)
+            .oklab_palette();
 
-	#[test]
-	#[allow(clippy::float_cmp)]
-	fn set_lightness_weight_restores_lightness() {
-		let mut oklab = OklabCounts::try_from_srgb(&test_colors()).expect("non-gigantic slice");
+        assert!(palette.len() <= k);
 
-		let expected = oklab.clone();
+        #[cfg(feature = "threads")]
+        {
+            let palette = Okolors::try_from(&colors[..k])
+                .unwrap()
+                .palette_size(PaletteSize::MAX)
+                .batch_size(64)
+                .oklab_palette_par();
 
-		oklab.set_lightness_weight(0.325);
-		assert_ne!(expected.lightness_weight, oklab.lightness_weight);
+            assert!(palette.len() <= k);
+        }
+    }
 
-		oklab.set_lightness_weight(expected.lightness_weight);
-		assert_oklab_counts_eq(&expected, &oklab);
-	}
+    #[test]
+    fn no_samples() {
+        let colors = test_colors();
+        let palette = Okolors::try_from(colors.as_slice())
+            .unwrap()
+            .sampling_factor(0.0)
+            .oklab_palette();
 
-	#[test]
-	fn transparent_results_match() {
-		let rgb = test_colors();
-		let matte = rgb.iter().map(|color| color.with_alpha(u8::MAX)).collect::<Vec<_>>();
-		let transparent = rgb.iter().map(|color| color.with_alpha(0_u8)).collect::<Vec<_>>();
+        assert_eq!(palette.len(), 8);
 
-		let expected = OklabCounts::try_from_srgb(&rgb).expect("non-gigantic slice");
-		let matte_result_a = OklabCounts::try_from_srgba(&matte, u8::MAX).expect("non-gigantic slice");
-		let matte_result_b = OklabCounts::try_from_srgba(&matte, 0).expect("non-gigantic slice");
-		let transparent_result = OklabCounts::try_from_srgba(&transparent, 0).expect("non-gigantic slice");
+        #[cfg(feature = "threads")]
+        {
+            let palette = Okolors::try_from(colors.as_slice())
+                .unwrap()
+                .sampling_factor(0.0)
+                .batch_size(64)
+                .oklab_palette_par();
 
-		assert_oklab_counts_eq(&expected, &matte_result_a);
-		assert_oklab_counts_eq(&expected, &matte_result_b);
-		assert_oklab_counts_eq(&expected, &transparent_result);
-	}
+            assert_eq!(palette.len(), 8);
+        }
+    }
 
-	#[test]
-	fn alpha_threshold() {
-		let transparent = test_colors()
-			.iter()
-			.map(|color| color.with_alpha(0_u8))
-			.collect::<Vec<_>>();
+    #[test]
+    #[cfg(feature = "threads")]
+    fn zero_batch_size() {
+        let colors = test_colors();
+        let palette = Okolors::try_from(colors.as_slice())
+            .unwrap()
+            .batch_size(0)
+            .oklab_palette_par();
 
-		let result_a = OklabCounts::try_from_srgba(&transparent, u8::MAX).expect("non-gigantic slice");
-		let result_b = OklabCounts::try_from_srgba(&transparent, 1).expect("non-gigantic slice");
-
-		assert_eq!(result_a.num_colors(), 0);
-		assert_eq!(result_b.num_colors(), 0);
-	}
-
-	#[test]
-	#[cfg(feature = "threads")]
-	fn different_num_threads_match() {
-		let rgb = test_colors();
-
-		let expected = OklabCounts::try_from_srgb(&rgb).expect("non-gigantic slice");
-
-		let pool = rayon::ThreadPoolBuilder::new()
-			.num_threads(rayon::current_num_threads() / 2)
-			.build()
-			.expect("built thread pool");
-
-		let result = pool.install(|| OklabCounts::try_from_srgb(&rgb).expect("non-gigantic slice"));
-
-		assert_oklab_counts_eq(&expected, &result);
-	}
-
-	#[test]
-	#[cfg(feature = "threads")]
-	fn different_input_permutations_match() {
-		use rand::{seq::SliceRandom, SeedableRng};
-
-		let mut rng = rand_xoshiro::Xoroshiro128PlusPlus::seed_from_u64(0);
-		let mut rgb = test_colors();
-
-		let expected = OklabCounts::try_from_srgb(&rgb).expect("non-gigantic slice");
-
-		rgb.shuffle(&mut rng);
-		let result = OklabCounts::try_from_srgb(&rgb).expect("non-gigantic slice");
-
-		assert_oklab_counts_eq(&expected, &result);
-	}
+        assert_eq!(palette.len(), 8);
+    }
 }
