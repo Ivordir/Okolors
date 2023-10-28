@@ -48,7 +48,7 @@ fn binner(lightness_weight: f32) -> FloatBinner<f32, 32> {
     FloatBinner::new(ranges)
 }
 
-/// Genereate a color palette using Wu's color quantizer.
+/// Generate a color palette using Wu's color quantizer.
 #[must_use]
 pub fn wu_palette(
     unique: &UniqueOklabCounts,
@@ -58,7 +58,7 @@ pub fn wu_palette(
     wu::palette(unique, palette_size, &binner(lightness_weight))
 }
 
-/// Genereate a color palette in parallel using Wu's color quantizer.
+/// Generate a color palette in parallel using Wu's color quantizer.
 #[cfg(feature = "threads")]
 #[must_use]
 pub fn wu_palette_par(
@@ -78,7 +78,7 @@ pub fn num_samples(unique: &UniqueOklabCounts, sampling_factor: f32) -> u32 {
     }
 }
 
-/// Genereate a color palette using k-means clustering.
+/// Generate a color palette using k-means clustering.
 #[must_use]
 pub fn kmeans_palette(
     unique: &UniqueOklabCounts,
@@ -90,7 +90,7 @@ pub fn kmeans_palette(
     kmeans::palette(unique, samples, centroids, seed)
 }
 
-/// Genereate a color palette in parallel using k-means clustering.
+/// Generate a color palette in parallel using k-means clustering.
 #[cfg(feature = "threads")]
 #[must_use]
 pub fn kmeans_palette_par(
