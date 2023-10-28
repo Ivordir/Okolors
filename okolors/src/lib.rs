@@ -101,16 +101,18 @@
     clippy::unreadable_literal
 )]
 
+#[cfg(not(feature = "internal"))]
+mod internal;
+
+#[cfg(feature = "internal")]
+pub mod internal;
+
 use palette::{
     encoding::{self, FromLinear},
     rgb::RgbStandard,
     FromColor, LinSrgb, Oklab, Srgb,
 };
-use quantette::{
-    kmeans::{self, Centroids},
-    wu::{self, FloatBinner},
-    AboveMaxLen, ColorSlice, ColorSpace, PaletteSize, UniqueColorCounts,
-};
+use quantette::{AboveMaxLen, ColorSlice, PaletteSize};
 
 #[cfg(feature = "image")]
 use image::RgbImage;
@@ -233,29 +235,6 @@ impl<'a> Okolors<'a> {
         self
     }
 
-    /// Create the [`Oklab`] binner for the current lightness weight.
-    fn binner(&self) -> FloatBinner<f32, 32> {
-        let mut ranges = ColorSpace::OKLAB_F32_COMPONENT_RANGES_FROM_SRGB;
-        ranges[0].1 *= self.lightness_weight;
-        FloatBinner::new(ranges)
-    }
-
-    /// Returns the number of samples based off the samplling factor.
-    fn num_samples(&self, unique: &UniqueColorCounts<Oklab, f32, 3>) -> u32 {
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        {
-            (f64::from(self.sampling_factor) * f64::from(unique.total_count())) as u32
-        }
-    }
-
-    /// Unapply the lightness weight to get the final palette colors.
-    fn unscale_lightness(&self, mut palette: Vec<Oklab>) -> Vec<Oklab> {
-        for color in &mut palette {
-            color.l /= self.lightness_weight;
-        }
-        palette
-    }
-
     /// Computes the [`Oklab`] color palette.
     #[must_use]
     pub fn oklab_palette(&self) -> Vec<Oklab> {
@@ -264,26 +243,23 @@ impl<'a> Okolors<'a> {
             colors,
             palette_size,
             seed,
+            sampling_factor,
             ..
         } = *self;
 
-        let unique = UniqueColorCounts::new(colors, |srgb| {
-            let mut oklab = Oklab::from_color(srgb.into_linear());
-            oklab.l *= lightness_weight;
-            oklab
-        });
+        let unique = internal::unique_oklab_counts(colors, lightness_weight);
+        let palette = internal::wu_palette(&unique, palette_size, lightness_weight).palette;
+        let samples = internal::num_samples(&unique, sampling_factor);
 
-        let palette = wu::palette(&unique, palette_size, &self.binner()).palette;
-        let samples = self.num_samples(&unique);
-
-        let palette = if samples == 0 {
+        let mut palette = if samples == 0 {
             palette
         } else {
-            let centroids = Centroids::from_truncated(palette);
-            kmeans::palette(&unique, samples, centroids, seed).palette
+            internal::kmeans_palette(&unique, samples, palette, seed).palette
         };
 
-        self.unscale_lightness(palette)
+        internal::restore_lightness(&mut palette, lightness_weight);
+
+        palette
     }
 
     /// Convert an [`Oklab`] palette to an [`Srgb`] palette.
@@ -331,28 +307,25 @@ impl<'a> Okolors<'a> {
             colors,
             lightness_weight,
             palette_size,
+            sampling_factor,
             batch_size,
             seed,
             ..
         } = *self;
 
-        let unique = UniqueColorCounts::new_par(colors, |srgb| {
-            let mut oklab = Oklab::from_color(srgb.into_linear());
-            oklab.l *= lightness_weight;
-            oklab
-        });
+        let unique = internal::unique_oklab_counts_par(colors, lightness_weight);
+        let palette = internal::wu_palette_par(&unique, palette_size, lightness_weight).palette;
+        let samples = internal::num_samples(&unique, sampling_factor);
 
-        let palette = wu::palette_par(&unique, palette_size, &self.binner()).palette;
-        let samples = self.num_samples(&unique);
-
-        let palette = if samples < batch_size {
+        let mut palette = if samples < batch_size {
             palette
         } else {
-            let centroids = Centroids::from_truncated(palette);
-            kmeans::palette_par(&unique, samples, batch_size, centroids, seed).palette
+            internal::kmeans_palette_par(&unique, samples, batch_size, palette, seed).palette
         };
 
-        self.unscale_lightness(palette)
+        internal::restore_lightness(&mut palette, lightness_weight);
+
+        palette
     }
 
     /// Computes the [`Srgb<u8>`] color palette in parallel.

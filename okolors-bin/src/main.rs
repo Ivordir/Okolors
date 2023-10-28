@@ -42,15 +42,13 @@ use std::{
     time::Instant,
 };
 
+use okolors::internal as okolors;
+
 use clap::Parser;
 use colored::Colorize;
-use image::{DynamicImage, GenericImageView, RgbImage};
+use image::{DynamicImage, GenericImageView};
 use palette::{FromColor, Okhsl, Oklab, Srgb};
-use quantette::{
-    kmeans::{self, Centroids},
-    wu::{self, FloatBinner},
-    ColorSpace, UniqueColorCounts,
-};
+use quantette::ColorSlice;
 
 /// Record the running time of a function and print the elapsed time
 macro_rules! time {
@@ -126,11 +124,12 @@ fn generate_and_print_palette(options: &Options) -> Result<(), ImageLoadError> {
     let img = time!("Image loading", options.verbose, load_image(&options.image))?;
     let img = generate_thumbnail(img, options.max_pixels, options.verbose);
     let img = img.into_rgb8();
+    let slice = ColorSlice::try_from(&img).expect("less than u32::MAX pixels"); // because of thumbnail
 
     // Processing
     let (palette, counts) = {
         let start = Instant::now();
-        let result = get_palette_counts(&img, options);
+        let result = get_palette_counts(slice, options);
         if options.verbose {
             println!(
                 "Palette generation took {}ms in total",
@@ -200,23 +199,8 @@ fn generate_thumbnail(image: DynamicImage, max_pixels: u32, verbose: bool) -> Dy
     }
 }
 
-/// Create an [`Oklab`] binner for the given lightness weight.
-fn binner(lightness_weight: f32) -> FloatBinner<f32, 32> {
-    let mut ranges = ColorSpace::OKLAB_F32_COMPONENT_RANGES_FROM_SRGB;
-    ranges[0].1 *= lightness_weight;
-    FloatBinner::new(ranges)
-}
-
-/// Returns the number of samples to make based off the given sampling factor and unique colors.
-fn num_samples(color_counts: &UniqueColorCounts<Oklab, f32, 3>, sampling_factor: f32) -> u32 {
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    {
-        (f64::from(sampling_factor) * f64::from(color_counts.num_colors())) as u32
-    }
-}
-
 /// Generate a palette from the given image and options
-fn palette_counts(image: &RgbImage, options: &Options) -> (Vec<Oklab>, Vec<u32>) {
+fn palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> (Vec<Oklab>, Vec<u32>) {
     let Options {
         lightness_weight,
         k,
@@ -229,12 +213,7 @@ fn palette_counts(image: &RgbImage, options: &Options) -> (Vec<Oklab>, Vec<u32>)
     let unique = time!(
         "Preprocessing",
         verbose,
-        UniqueColorCounts::try_from_rgbimage(image, |srgb| {
-            let mut oklab = Oklab::from_color(srgb.into_linear());
-            oklab.l *= lightness_weight;
-            oklab
-        })
-        .expect("less than u32::MAX pixels") // because of thumbnail
+        okolors::unique_oklab_counts(colors, lightness_weight)
     );
 
     if verbose {
@@ -244,10 +223,10 @@ fn palette_counts(image: &RgbImage, options: &Options) -> (Vec<Oklab>, Vec<u32>)
     let centroids = time!(
         "Initial centroids",
         verbose,
-        wu::palette(&unique, k, &binner(lightness_weight))
+        okolors::wu_palette(&unique, k, lightness_weight)
     );
 
-    let samples = num_samples(&unique, sampling_factor);
+    let samples = okolors::num_samples(&unique, sampling_factor);
 
     let mut result = if samples == 0 {
         if verbose {
@@ -260,31 +239,27 @@ fn palette_counts(image: &RgbImage, options: &Options) -> (Vec<Oklab>, Vec<u32>)
             println!("Running k-means for {samples} samples");
         }
 
-        let centroids = Centroids::from_truncated(centroids.palette);
-
         time!(
             "k-means",
             verbose,
-            kmeans::palette(&unique, samples, centroids, seed)
+            okolors::kmeans_palette(&unique, samples, centroids.palette, seed)
         )
     };
 
-    for color in &mut result.palette {
-        color.l /= lightness_weight;
-    }
+    okolors::restore_lightness(&mut result.palette, lightness_weight);
 
     (result.palette, result.counts)
 }
 
 /// temp
 #[cfg(not(feature = "threads"))]
-fn get_palette_counts(image: &RgbImage, options: &Options) -> (Vec<Oklab>, Vec<u32>) {
-    palette_counts(image, options)
+fn get_palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> (Vec<Oklab>, Vec<u32>) {
+    palette_counts(colors, options)
 }
 
 /// Generate a palette from the given image and options
 #[cfg(feature = "threads")]
-fn get_palette_counts(image: &RgbImage, options: &Options) -> (Vec<Oklab>, Vec<u32>) {
+fn get_palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> (Vec<Oklab>, Vec<u32>) {
     let Options {
         lightness_weight,
         k,
@@ -297,17 +272,12 @@ fn get_palette_counts(image: &RgbImage, options: &Options) -> (Vec<Oklab>, Vec<u
     } = *options;
 
     if threads == 1 {
-        palette_counts(image, options)
+        palette_counts(colors, options)
     } else {
         let unique = time!(
             "Preprocessing",
             verbose,
-            UniqueColorCounts::try_from_rgbimage_par(image, |srgb| {
-                let mut oklab = Oklab::from_color(srgb.into_linear());
-                oklab.l *= lightness_weight;
-                oklab
-            })
-            .expect("less than u32::MAX pixels")
+            okolors::unique_oklab_counts_par(colors, lightness_weight)
         );
 
         if verbose {
@@ -317,10 +287,10 @@ fn get_palette_counts(image: &RgbImage, options: &Options) -> (Vec<Oklab>, Vec<u
         let centroids = time!(
             "Initial centroids",
             verbose,
-            wu::palette_par(&unique, k, &binner(lightness_weight))
+            okolors::wu_palette_par(&unique, k, lightness_weight)
         );
 
-        let samples = num_samples(&unique, sampling_factor);
+        let samples = okolors::num_samples(&unique, sampling_factor);
 
         let mut result = if samples < batch_size {
             if verbose {
@@ -333,18 +303,14 @@ fn get_palette_counts(image: &RgbImage, options: &Options) -> (Vec<Oklab>, Vec<u
                 println!("Running k-means for {samples} samples with batch size {batch_size}");
             }
 
-            let centroids = Centroids::from_truncated(centroids.palette);
-
             time!(
                 "k-means",
                 verbose,
-                kmeans::palette_par(&unique, samples, batch_size, centroids, seed)
+                okolors::kmeans_palette_par(&unique, samples, batch_size, centroids.palette, seed)
             )
         };
 
-        for color in &mut result.palette {
-            color.l /= lightness_weight;
-        }
+        okolors::restore_lightness(&mut result.palette, lightness_weight);
 
         (result.palette, result.counts)
     }

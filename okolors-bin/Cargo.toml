@@ -15,7 +15,7 @@ path = "src/main.rs"
 
 [features]
 default = ["threads", "default_formats"]
-threads = ["quantette/threads", "image/jpeg_rayon", "rayon"]
+threads = ["okolors/threads", "image/jpeg_rayon", "rayon"]
 
 # Image formats
 default_formats = ["jpeg", "png", "gif", "qoi"]
@@ -29,7 +29,8 @@ bmp = ["image/bmp"]
 tiff = ["image/tiff"]
 
 [dependencies]
-quantette = { version = "0.1.0", default-features = false, features = ["kmeans", "image", "colorspaces"] }
+okolors = { path = "../okolors", default-features = false, features = ["internal", "image"] }
+quantette = { version = "0.1.0", default-features = false }
 palette = { version = "0.7.1", default-features = false }
 clap = { version = "4.0.18", features = ["derive"] }
 colored = "2.0.0"
