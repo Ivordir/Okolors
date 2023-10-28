@@ -88,16 +88,7 @@ pub struct Options {
     #[arg(short = 'w', long, default_value_t = 0.325, value_parser = parse_lightness_weight)]
     pub lightness_weight: f32,
 
-    /// The maximum image size, in number of pixels, before a thumbnail is created
-    ///
-    /// Unfortunately, this option may reduce the color accuracy,
-    /// as multiple pixels in the original image are interpolated to form a pixel in the thumbnail.
-    /// This option is intended for reducing the time needed for large images,
-    /// but it can also be used to provide fast, inaccurate results for any image.
-    #[arg(short = 'p', long, default_value_t = u32::MAX)]
-    pub max_pixels: u32,
-
-    /// The (maximum) number of colors to find
+    /// The (maximum) number of colors to put in the palette
     ///
     /// The provided value should be in the range [0, 256].
     #[arg(short, default_value_t = 8.into(), value_parser = parse_palette_size)]
@@ -111,9 +102,14 @@ pub struct Options {
     #[arg(short = 'f', long, default_value_t = 0.5, value_parser = parse_sampling_factor)]
     pub sampling_factor: f32,
 
-    /// The seed value used for the random number generator
-    #[arg(long, default_value_t = 0)]
-    pub seed: u64,
+    /// The maximum image size, in number of pixels, before a thumbnail is created
+    ///
+    /// Unfortunately, this option may reduce the color accuracy,
+    /// as multiple pixels in the original image are interpolated to form a pixel in the thumbnail.
+    /// This option is intended for reducing the time needed for large images,
+    /// but it can also be used to provide fast, inaccurate results for any image.
+    #[arg(short = 'p', long, default_value_t = u32::MAX)]
+    pub max_pixels: u32,
 
     /// The number of samples to batch together in k-means
     ///
@@ -122,6 +118,10 @@ pub struct Options {
     #[cfg(feature = "threads")]
     #[arg(long, default_value_t = 4096)]
     pub batch_size: u32,
+
+    /// The seed value used for the random number generator
+    #[arg(long, default_value_t = 0)]
+    pub seed: u64,
 
     /// The number of threads to use
     ///
