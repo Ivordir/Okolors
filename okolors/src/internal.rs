@@ -74,7 +74,7 @@ pub fn wu_palette_par(
 pub fn num_samples(unique: &UniqueOklabCounts, sampling_factor: f32) -> u32 {
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     {
-        (f64::from(sampling_factor) * f64::from(unique.total_count())) as u32
+        (f64::from(sampling_factor) * f64::from(unique.num_colors())) as u32
     }
 }
 
