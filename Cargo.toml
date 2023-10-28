@@ -3,10 +3,7 @@ members = [
   "okolors",
   "okolors-bin",
 ]
+resolver = "2"
 
 [profile.release]
 strip = true
-
-[profile.bench]
-strip = false
-debug = true

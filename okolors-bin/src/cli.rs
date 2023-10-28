@@ -1,204 +1,179 @@
 //! Specifies the CLI and handles arg parsing
 
+use std::{ops::RangeInclusive, path::PathBuf};
+
 use clap::{Parser, ValueEnum};
 use palette::Okhsl;
-use std::{
-	fmt::{Debug, Display},
-	num::ParseFloatError,
-	ops::RangeBounds,
-	path::PathBuf,
-	str::FromStr,
-};
+use quantette::{AboveMaxLen, PaletteSize};
 
 /// Supported output formats for the final colors
 #[derive(Copy, Clone, ValueEnum)]
 pub enum FormatOutput {
-	/// sRGB hexcode
-	Hex,
-	/// sRGB (r,g,b) triple
-	Rgb,
-	/// Whitespace with true color background
-	Swatch,
+    /// sRGB hexcode
+    Hex,
+    /// sRGB (r,g,b) triple
+    Rgb,
+    /// Whitespace with true color background
+    Swatch,
 }
 
 /// Sort orders for the final colors
 #[derive(Copy, Clone, ValueEnum)]
 pub enum SortOutput {
-	/// Ascending hue
-	H,
-	/// Ascending saturation
-	S,
-	/// Ascending lightness
-	L,
-	/// Descending number of pixels
-	N,
+    /// Ascending hue
+    H,
+    /// Ascending saturation
+    S,
+    /// Ascending lightness
+    L,
+    /// Descending number of pixels
+    N,
 }
 
 /// Ways to colorize the output text
 #[derive(Copy, Clone, ValueEnum)]
 pub enum ColorizeOutput {
-	/// Foreground
-	Fg,
-	/// Background
-	Bg,
+    /// Foreground
+    Fg,
+    /// Background
+    Bg,
 }
 
-/// Generate a color palette for an image by performing k-means clustering in the Oklab color space.
-///
-/// Okolors also supports outputting the resulting colors in multiple Okhsl lightness levels.
-#[allow(clippy::struct_excessive_bools)]
+/// Generate a color palette from an image by performing k-means clustering in the Oklab color space.
 #[derive(Parser)]
 #[command(name = "okolors", version)]
 pub struct Options {
-	/// The path to the input image
-	pub image: PathBuf,
+    /// The path to the input image
+    pub image: PathBuf,
 
-	/// The format to print the colors in
-	#[arg(short, long, default_value = "hex")]
-	pub output: FormatOutput,
+    /// The format to print the colors in
+    #[arg(short, long, default_value = "hex")]
+    pub output: FormatOutput,
 
-	/// Color the foreground or background for each printed color
-	#[arg(short, long)]
-	pub colorize: Option<ColorizeOutput>,
+    /// Color the foreground or background for each printed color
+    #[arg(short, long)]
+    pub colorize: Option<ColorizeOutput>,
 
-	/// The order to print the colors in
-	///
-	/// The h, s, and l options below refer to Okhsl component values and not the HSL color space.
-	#[arg(short, long, default_value = "n")]
-	pub sort: SortOutput,
+    /// The order to print the colors in
+    ///
+    /// The h, s, and l options below refer to Okhsl component values and not the HSL color space.
+    #[arg(short, long, default_value = "n")]
+    pub sort: SortOutput,
 
-	/// Reverse the printed order of the colors
-	#[arg(short, long)]
-	pub reverse: bool,
+    /// Reverse the printed order of the colors
+    #[arg(short, long)]
+    pub reverse: bool,
 
-	/// A comma separated list of additional lightness levels that each color should be printed in
-	///
-	/// Lightness refers to Okhsl lightness with values in the range [0, 100].
-	/// A separate line is used for printing the colors at each lightness level.
-	#[arg(short, long, value_delimiter = ',', value_parser = parse_valid_lightness)]
-	pub lightness_levels: Vec<f32>,
+    /// A comma separated list of additional lightness levels that each color should be printed in
+    ///
+    /// Lightness refers to Okhsl lightness with values in the range [0, 100].
+    /// A separate line is used for printing the colors at each lightness level.
+    #[arg(short, long, value_delimiter = ',', value_parser = parse_lightness)]
+    pub lightness_levels: Vec<f32>,
 
-	/// Do not print each color with its average lightness
-	///
-	/// This is useful if you only care about colors resulting from the --lightness-levels option.
-	#[arg(long)]
-	pub no_avg_lightness: bool,
+    /// Do not print each color with its average lightness
+    ///
+    /// This is useful if you only care about colors resulting from the --lightness-levels option.
+    #[arg(long)]
+    pub no_avg_lightness: bool,
 
-	/// The value used to scale down the influence of the lightness component on color difference
-	///
-	/// Lower weights have the effect of bringing out more distinct hues,
-	/// but the resulting colors will technically not be accurate, perceptual averages for the colors in the image.
-	/// I.e., this is a subjective option you can tweak to get different kind of color palettes.
-	/// A value around 0.325 seems to provide somewhat similar results to the CIELAB color space,
-	/// whereas a value of 1.0 indicates to provide results while staying true to the Oklab color space.
-	/// Provided values should be in the range [0.0, 1.0].
-	#[arg(short = 'w', long, default_value_t = 0.325, value_parser = parse_valid_lightness_weight)]
-	pub lightness_weight: f32,
+    /// The value used to scale down the influence of the lightness component on color difference
+    ///
+    /// The brightness of colors has more influence on the perceived difference between colors.
+    /// So, the generated the palette may contain colors that differ mainly in brightness only.
+    /// The lightness weight is used scale down the lightness component of the colors,
+    /// potentially bringing out more distinct hues in the final color palette.
+    /// One downside to this is that colors near white and black may be merged into a shade of gray.
+    /// Provided values should be in the range [0.0, 1.0].
+    #[arg(short = 'w', long, default_value_t = 0.325, value_parser = parse_lightness_weight)]
+    pub lightness_weight: f32,
 
-	/// Ignore pixels with an alpha value less than this threshold
-	///
-	/// The threshold value should be in the range [0, 255].
-	///
-	/// To ignore all transparent pixels use a threshold value of 255.
-	/// To include all partially transparent pixels use a value of 1.
-	/// Of course, if the provided image has no alpha channel, then this value does nothing.
-	#[arg(short = 'a', long, default_value_t = u8::MAX)]
-	pub alpha_threshold: u8,
+    /// The maximum image size, in number of pixels, before a thumbnail is created
+    ///
+    /// Unfortunately, this option may reduce the color accuracy,
+    /// as multiple pixels in the original image are interpolated to form a pixel in the thumbnail.
+    /// This option is intended for reducing the time needed for large images,
+    /// but it can also be used to provide fast, inaccurate results for any image.
+    #[arg(short = 'p', long, default_value_t = u32::MAX)]
+    pub max_pixels: u32,
 
-	/// The maximum image size, in number of pixels, before a thumbnail is created
-	///
-	/// Unfortunately, this option may reduce the color accuracy,
-	/// as multiple pixels in the original image are interpolated to form a pixel in the thumbnail.
-	/// This option is intended for reducing the time needed for large images,
-	/// but it can also be used to provide fast, inaccurate results for any image.
-	#[arg(short = 'p', long, default_value_t = u32::MAX)]
-	pub max_pixels: u32,
+    /// The (maximum) number of colors to find
+    ///
+    /// The provided value should be in the range [0, 256].
+    #[arg(short, default_value_t = 8.into(), value_parser = parse_palette_size)]
+    pub k: PaletteSize,
 
-	/// The (maximum) number of colors to find
-	///
-	/// k should be in the range [0, 255].
-	#[arg(short, default_value_t = 8)]
-	pub k: u8,
+    /// The number of samples to make, expressed as a percentage of
+    /// the number of unique colors in the image
+    ///
+    /// Higher sampling factors take longer but give more accurate results.
+    /// Sampling factors can be above `1.0`, but this may not give noticeably better results.
+    #[arg(short = 'f', long, default_value_t = 0.5, value_parser = parse_sampling_factor)]
+    pub sampling_factor: f32,
 
-	/// The number of trials of k-means to run
-	///
-	/// 1 to 3 or 1 to 5 trials is recommended.
-	///
-	/// k-means can get stuck in a local minimum, so you may want to run a few or more trials to get better results.
-	/// The trial with the lowest MSE is picked.
-	#[arg(short = 'n', long, default_value_t = 1)]
-	pub trials: u32,
+    /// The seed value used for the random number generator
+    #[arg(long, default_value_t = 0)]
+    pub seed: u64,
 
-	/// The threshold number used to determine k-means convergence
-	///
-	/// The recommended range for the convergence threshold is [0.01, 0.1].
-	///
-	/// A value of 0.1 is very fast (often only a few iterations are needed for regular sized images),
-	/// and this should be enough to get a decent looking palette.
-	///
-	/// A value of 0.01 is the lowest sensible value for maximum accuracy.
-	/// Convergence thresholds should probably be not too far lower than this,
-	/// as any iterations after this either do not or barely effect the final sRGB colors.
-	/// I.e., don't use 0.0 as the convergence threshold,
-	/// as that may require many more iterations and would just be wasting time.
-	///
-	/// Of course, any values between 0.01 and 0.1 will be some compromise between accuracy and speed.
-	#[arg(short = 'e', long, default_value_t = 0.05, value_parser = parse_valid_convergence)]
-	pub convergence_threshold: f32,
+    /// The number of samples to batch together in k-means
+    ///
+    /// Increasing the batch size reduces the running time but with dimishing returns.
+    /// Smaller batch sizes are more accurate but slower to run.
+    #[cfg(feature = "quantette_threads")]
+    #[arg(long, default_value_t = 4096)]
+    pub batch_size: u32,
 
-	/// The maximum number of iterations for all k-means trials
-	///
-	/// If you have a very large image and are not using the --max-pixels options, you may have to set this option higher.
-	/// You can use the --verbose option to see how many iterations the best k-means trial took.
-	#[arg(short = 'i', long, default_value_t = 128)]
-	pub max_iter: u32,
+    /// The number of threads to use
+    ///
+    /// A value of 0 indicates to automatically choose the number of threads.
+    #[cfg(any(feature = "quantette_threads", feature = "jpeg_rayon"))]
+    #[arg(short, long, default_value_t = 0)]
+    pub threads: u8,
 
-	/// The seed value used for the random number generator
-	#[arg(long, default_value_t = 0)]
-	pub seed: u64,
-
-	/// The number of threads to use
-	///
-	/// A value of 0 indicates to automatically choose the number of threads
-	#[cfg(any(feature = "okolors_threads", feature = "jpeg_rayon"))]
-	#[arg(short, long, default_value_t = 0)]
-	pub threads: u8,
-
-	/// Print additional information, such as the number of k-means iterations
-	#[arg(long)]
-	pub verbose: bool,
+    /// Print additional information and the elapsed time for various steps
+    #[arg(long)]
+    pub verbose: bool,
 }
 
-/// Parse a float value and ensure it in the provided, valid range
-fn parse_float_in_range<T>(s: &str, range: impl RangeBounds<T> + Debug) -> Result<T, String>
-where
-	T: FromStr<Err = ParseFloatError> + Display + PartialOrd,
-{
-	let value: T = s.parse().map_err(|e| format!("{e}"))?;
-	if range.contains(&value) {
-		Ok(value)
-	} else {
-		Err(format!("{value} is not in {range:?}"))
-	}
+/// Parse the palette size and ensure it is <= `MAX_COLORS`
+fn parse_palette_size(s: &str) -> Result<PaletteSize, String> {
+    let value: u16 = s.parse().map_err(|e| format!("{e}"))?;
+    value
+        .try_into()
+        .map_err(|AboveMaxLen(max)| format!("not in the range [0, {max}]"))
 }
 
-/// Parse the convergence number and ensure it is >= `0.0`
-fn parse_valid_convergence(s: &str) -> Result<f32, String> {
-	parse_float_in_range(s, 0.0..)
+/// Parse a float value and ensure it in the provided range
+fn parse_float_in_range(s: &str, range: RangeInclusive<f32>) -> Result<f32, String> {
+    let value = s.parse().map_err(|e| format!("{e}"))?;
+    if range.contains(&value) {
+        Ok(value)
+    } else {
+        Err(format!(
+            "not in the range [{},{}]",
+            range.start(),
+            range.end()
+        ))
+    }
+}
+
+/// Parse the sampling factor and ensure it is in `0.0..=1.0`
+fn parse_sampling_factor(s: &str) -> Result<f32, String> {
+    parse_float_in_range(s, 0.0..=1.0)
 }
 
 /// The factor used to scale the lightness values for a better interface,
 /// as Okhsl lightness values are in the range `0.0..=1.0`
 pub const LIGHTNESS_SCALE: f32 = 100.0;
 
-/// Parse a lumiance value and ensure it is in `0.0..=100.0`
-fn parse_valid_lightness(s: &str) -> Result<f32, String> {
-	let min = LIGHTNESS_SCALE * Okhsl::<f32>::min_lightness();
-	let max = LIGHTNESS_SCALE * Okhsl::<f32>::max_lightness();
-	parse_float_in_range(s, min..=max)
+/// Parse a lightness value and ensure it is in `0.0..=100.0`
+fn parse_lightness(s: &str) -> Result<f32, String> {
+    let min = LIGHTNESS_SCALE * Okhsl::<f32>::min_lightness();
+    let max = LIGHTNESS_SCALE * Okhsl::<f32>::max_lightness();
+    parse_float_in_range(s, min..=max)
 }
 
 /// Parse the lightness weight and ensure it is in `0.0..=1.0`
-fn parse_valid_lightness_weight(s: &str) -> Result<f32, String> {
-	parse_float_in_range(s, 0.0..=1.0)
+fn parse_lightness_weight(s: &str) -> Result<f32, String> {
+    parse_float_in_range(s, 0.0..=1.0).map(|v| f32::max(v, f32::EPSILON))
 }
