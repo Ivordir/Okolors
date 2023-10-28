@@ -1,6 +1,6 @@
 [package]
 name = "okolors-bin"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["Ivordir <Ivordir@pm.me>"]
 edition = "2021"
 description = "Create color palettes from images by performing k-means clustering in the Oklab color space."
