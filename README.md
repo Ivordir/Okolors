@@ -1,25 +1,28 @@
-# Okolors [![](https://badgen.net/crates/v/okolors)](https://crates.io/crates/okolors)
+# Okolors
 
-Okolors takes an image and produces a color palette consisting of the image's average colors.
-It does this by converting the image's pixels to the [Oklab](https://bottosson.github.io/posts/oklab/) color space
-and then performing [k-means clustering](https://en.wikipedia.org/wiki/K-means_clustering).
+Okolors generates high quality color palettes from an image for your theming needs.
+It does this by converting the image's pixels to the
+[Oklab](https://bottosson.github.io/posts/oklab/) color space
+and then performing [k-means](https://en.wikipedia.org/wiki/K-means_clustering) clustering.
 By using a proper color space for color difference and a more accurate clustering algorithm,
 this helps to ensure that the generated palette is truly representative of the input image.
 
 One of the main intended use cases for Okolors is to generate colors for a theme based off a wallpaper.
-In line with this goal, the Okolors binary also supports printing the final average colors in multiple Okhsl lightness levels.
+In line with this goal, the Okolors also supports printing the final average colors in multiple Okhsl lightness levels.
 For example, you can specify a low lightness level for background colors
 and a high lightness for foreground text in order to achieve a certain contrast ratio.
 The [Okhsl](https://bottosson.github.io/posts/colorpicker/) color space is ideal for this,
 because as the lightness is changed, Okhsl preserves the hue and saturation of the color
 (better than other color spaces like HSL).
 
-The Okolors binary supports jpeg, png, gif, and qoi images by default.
+Okolors supports jpeg, png, gif, and qoi images by default.
 See the [features](#features) section for more info.
 Precompiled binaries are available on [Github](https://github.com/Ivordir/Okolors/releases).
 
-For more specific information regarding the `okolors` library
-see the [docs.rs](https://docs.rs/okolors/latest/okolors/) page as well.
+If you are looking for the Okolors library, see the crates.io page or the documentation:
+
+[![Crate](https://badgen.net/crates/v/okolors)](https://crates.io/crates/okolors)
+[![Docs](https://docs.rs/okolors/badge.svg)](https://docs.rs/okolors)
 
 # Examples
 
@@ -27,13 +30,13 @@ see the [docs.rs](https://docs.rs/okolors/latest/okolors/) page as well.
 
 Let's use the following photo for the examples below.
 
-![Jewel Changi Airport Waterfall](docs/Jewel%20Changi.jpg)
+![Jewel Changi Airport Waterfall](docs/img/Jewel%20Changi.jpg)
 
 Running Okolors for this image with the default options gives the following sRGB hex values.
 
 ```bash
 > okolors 'Jewel Changi.jpg'
-020404 06272C E6E7E9 1C5A66 452A21 92A1B9 C6815D A46C82
+010202 041215 08343A DCE1E5 246673 C27E63 4A2D25 8B739B
 ```
 
 If your terminal supports true color,
@@ -43,32 +46,24 @@ then you can use `-o swatch` to see blocks of the output colors.
 > okolors 'Jewel Changi.jpg' -o swatch
 ```
 
-![](docs/swatch1.svg)
-
-We can increase the color accuracy by increasing the number of trials, `-n`, and lowering the convergence threshold, `-e`.
-
-```bash
-> okolors 'Jewel Changi.jpg' -n 3 -e 0.01 -o swatch
-```
-
-![](docs/swatch2.svg)
+![](docs/cli/swatch1.svg)
 
 Let's get these colors in additional lightness levels using `-l`.
 
 ```bash
-> okolors 'Jewel Changi.jpg' -l 10,30,50,70 -n 3 -e 0.01 -o swatch
+> okolors 'Jewel Changi.jpg' -l 10,30,50,70 -o swatch
 ```
 
-![](docs/swatch3.svg)
+![](docs/cli/swatch2.svg)
 
 If we're providing our own lightness levels, maybe we want to cluster the colors by hue and saturation only.
 Let's set the lightness weight to `0` using `-w`.
 
 ```bash
-> okolors 'Jewel Changi.jpg' -w 0 -l 10,30,50,70 -n 3 -e 0.01 -o swatch
+> okolors 'Jewel Changi.jpg' -w 0 -l 10,30,50,70 -o swatch
 ```
 
-![](docs/swatch4.svg)
+![](docs/cli/swatch3.svg)
 
 That ended up bringing out an additional pinkish color but also merged white and black into a gray.
 So, use this at your own discretion!
@@ -76,65 +71,60 @@ So, use this at your own discretion!
 If some of the colors still seem quite similar, then you can reduce/set the number of colors through `-k`.
 
 ```bash
-> okolors 'Jewel Changi.jpg' -k 7 -w 0 -l 10,30,50,70 -n 3 -e 0.01 -o swatch
+> okolors 'Jewel Changi.jpg' -k 6 -w 0 -l 10,30,50,70 -o swatch
 ```
 
-![](docs/swatch5.svg)
+![](docs/cli/swatch4.svg)
 
 To see all the other command line options, pass `-h` for a summary or `--help` for detailed explanations.
-Note that the CLI flags translate one-to-one with the library parameters, if there is an equivalent.
 
 ## Images
 
-The flags `-n 4 -e 0.01 -l 10,30,50,70 -s l` were used for the additional examples below.
+Here are some more examples of Okolors in action. The only CLI flag used was `-s l`.
 
-![](docs/Lake%20Mendota.jpg)
+### Louvre
+![Louvre](docs/img/Louvre.jpg)
+![Louvre Palette](docs/palette/Louvre.svg)
 
-![](docs/Yellow%20Crane%20Tower.jpg)
+### Hokkaido
+![Hokkaido](docs/img/Hokkaido.jpg)
+![Hokkaido Palette](docs/palette/Hokkaido.svg)
 
-![](docs/Louvre.jpg)
+### Český Krumlov
+![Český Krumlov](docs/img/Cesky%20Krumlov.jpg)
+![Český Krumlov Palette](docs/palette/Cesky%20Krumlov.svg)
 
-![](docs/Cesky%20Krumlov.jpg)
+### Lake Mendota
+![Lake Mendota](docs/img/Lake%20Mendota.jpg)
+![Lake Mendota Palette](docs/palette/Lake%20Mendota.svg)
 
 # Performance
 
-Despite using k-means which is more accurate but slower than something like median cut quantization,
-Okolors still seems to be pretty fast. Excluding the time to read and decode the image from disk,
-below are Okolors's running times for each image as reported by [criteron](https://github.com/bheisler/criterion.rs).
-The parameters used were `k = 8`, `convergence_threshold = 0.05`, `trials = 1`, `max_iter = 1024`, and `lightness_weight = 0.325`.
-The benchmarks were run on a 4-core/8-thread CPU, so YMMV on different hardware (especially with more or less cores).
+Okolors is designed with performance in mind and should give fast results for even very large images.
+This is despite using k-means which is more accurate but slower than something like median cut quantization. Below are the palette generation times as reported by the `--verbose` flag.
+The only other flag used was `-t 4` to use 4 threads.
 
-| Image                    | Dimensions | Time (ms) |
-|:------------------------ |:----------:| ---------:|
-| Akihabara.jpg            | 5663x3669  |       140 |
-| Bryggen.jpg              | 5508x3098  |        51 |
-| Cesky Krumlov.jpg        | 4608x3456  |        71 |
-| Hokkaido.jpg             | 6000x4000  |        83 |
-| Jewel Changi.jpg         | 6000x4000  |        97 |
-| Lake Atitlan.jpg         | 5112x3408  |       115 |
-| Lake Mendota.jpg         | 3839x5758  |        73 |
-| Louvre.jpg               | 6056x4000  |        88 |
-| Sydney Sunset.jpg        | 2880x1508  |        15 |
-| Termas Geometricas.jpg   | 5472x3648  |        76 |
-| Yellow Crane Tower.jpg   | 3785x2839  |        55 |
-| Yosemite Tunnel View.jpg | 5580x3720  |        69 |
+| Image               | Width | Height | Unique Colors | Time (ms) |
+| ------------------- | -----:| ------:| -------------:| ---------:|
+| Louvre              | 6056  | 4000   | 616101        | 63        |
+| Hokkaido            | 6000  | 4000   | 576339        | 57        |
+| Jewel Changi        | 6000  | 4000   | 400788        | 48        |
+| Český Krumlov       | 4608  | 3456   | 743552        | 51        |
+| Lake Mendota        | 3839  | 5758   | 467802        | 55        |
+| Louvre (25%)        | 1514  | 1000   | 238332        | 18        |
+| Hokkaido (25%)      | 1500  | 1000   | 262207        | 18        |
+| Jewel Changi (25%)  | 1500  | 1000   | 147678        | 11        |
+| Český Krumlov (25%) | 1152  | 864    | 294989        | 20        |
+| Lake Mendota (25%)  | 960   | 1440   | 264149        | 18        |
 
-Note that these are high resolution images, so the running time can be much faster for lower resolution images.
-The binary also has a CLI flag to create a thumbnail for images over a certain size.
+Oftentimes, especially for large images, loading the image from disk takes longer
+than it does for Okolors to generate the palette!
 
 # Features
 
-## Library
+Here is the list of cargo features and supported image foramts:
 
-- `threads`: enabled by default and toggles parallelism via [rayon](https://github.com/rayon-rs/rayon).
-
-## Binary
-
-- `threads`: enabled by default and toggles all other thread-related features.
-
-  - `okolors_threads`: enabled by default, toggles the corresponding library feature.
-
-  - `jpeg_rayon`: enabled by default, allows multiple threads for decoding jpeg images.
+- `threads`: use multiple threads to generate palettes (enabled by default).
 
 - `jpeg`, `png`, `gif`, and `qoi`: support for these image formats is enabled by default through the `default_formats` feature.
 
@@ -156,13 +146,11 @@ Compiling with this feature requires cmake and nasm on the system.
 - [kmeans-colors](https://github.com/okaneco/kmeans-colors/) served as the original inspiration for Okolors.
   If you want to perform other k-means related operations on images or prefer the CIELAB colorspace, then check it out!
 - The awesome [palette](https://github.com/Ogeon/palette) library is used for all color conversions.
-- The work by [Dr. Greg Hamerly and others](https://cs.baylor.edu/~hamerly/software/kmeans)
-  was a very helpful resource for the k-means implementation in Okolors.
-- [Drake's Master's Thesis](https://baylor-ir.tdl.org/bitstream/handle/2104/8826/jonathan_drake_masters.pdf?sequence=1)
-  initially gave me the idea to use a sort k-means implementation.
-- Then, I independently came up with a weighted sort k-means implementation,
-  but later found the [work of Dr. M. Emre Celebi](https://arxiv.org/pdf/1011.0093.pdf)
-  who also proposes the same method! Instead of using a hash table,
-  the current implementation of Okolors used a radix sort based method.
-  I have yet to find existing work or examples that take this approach in combination with k-means.
 
+# License
+
+Okolors (binary and library) is licensed under either
+- the [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0) (see [LICENSE-APACHE](LICENSE-APACHE))
+- the [MIT](http://opensource.org/licenses/MIT) license (see [LICENSE-MIT](LICENSE-MIT))
+
+at your option.
