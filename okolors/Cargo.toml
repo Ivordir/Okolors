@@ -7,7 +7,6 @@ description = "Create color palettes from images by performing k-means clusterin
 homepage = "https://github.com/Ivordir/Okolors"
 repository = "https://github.com/Ivordir/Okolors"
 license = "MIT OR Apache-2.0"
-readme = "../README.md"
 include = ["src"]
 keywords = ["palette", "theme", "color", "oklab", "kmeans"]
 categories = ["multimedia::images"]
