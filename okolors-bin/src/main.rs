@@ -35,18 +35,13 @@ mod cli;
 #[allow(clippy::wildcard_imports)]
 use cli::*;
 
-use std::{
-    fmt::{self, Display},
-    path::PathBuf,
-    process::ExitCode,
-    time::Instant,
-};
+use std::{process::ExitCode, time::Instant};
 
 use okolors::internal as okolors;
 
 use clap::Parser;
 use colored::Colorize;
-use image::{DynamicImage, GenericImageView};
+use image::{DynamicImage, GenericImageView, ImageError};
 use palette::{FromColor, Okhsl, Oklab, Srgb};
 use quantette::ColorSlice;
 
@@ -60,31 +55,6 @@ macro_rules! time {
         }
         result
     }};
-}
-
-/// Error cases for loading and decoding an image
-#[derive(Debug)]
-enum ImageLoadError {
-    /// Failed to read or decode the image file
-    ImageLoad(image::ImageError),
-    /// Failed to read the avif file
-    #[cfg(feature = "avif")]
-    AvifRead(std::io::Error),
-    /// Failed to decode the avif file
-    #[cfg(feature = "avif")]
-    AvifDecode(libavif_image::Error),
-}
-
-impl Display for ImageLoadError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ImageLoadError::ImageLoad(e) => write!(f, "Failed to load the image file: {e}"),
-            #[cfg(feature = "avif")]
-            ImageLoadError::AvifRead(e) => write!(f, "Failed to read the avif file: {e}"),
-            #[cfg(feature = "avif")]
-            ImageLoadError::AvifDecode(e) => write!(f, "Failed to decode the avif file: {e}"),
-        }
-    }
 }
 
 fn main() -> ExitCode {
@@ -103,7 +73,7 @@ fn main() -> ExitCode {
 
 /// Builds a thread pool and then runs `get_print_palette`
 #[cfg(feature = "threads")]
-fn run_generate_and_print_palette(options: &Options) -> Result<(), ImageLoadError> {
+fn run_generate_and_print_palette(options: &Options) -> Result<(), ImageError> {
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(usize::from(options.threads))
         .build()
@@ -114,14 +84,18 @@ fn run_generate_and_print_palette(options: &Options) -> Result<(), ImageLoadErro
 
 /// Runs `get_print_palette` on a single thread
 #[cfg(not(feature = "threads"))]
-fn run_generate_and_print_palette(options: &Options) -> Result<(), ImageLoadError> {
+fn run_generate_and_print_palette(options: &Options) -> Result<(), ImageError> {
     generate_and_print_palette(options)
 }
 
 /// Load an image, generate its palette, and print the result using the given options
-fn generate_and_print_palette(options: &Options) -> Result<(), ImageLoadError> {
+fn generate_and_print_palette(options: &Options) -> Result<(), ImageError> {
     // Input
-    let img = time!("Image loading", options.verbose, load_image(&options.image))?;
+    let img = time!(
+        "Image loading",
+        options.verbose,
+        image::open(&options.image)
+    )?;
     let img = generate_thumbnail(img, options.max_pixels, options.verbose);
     let img = img.into_rgb8();
     let slice = ColorSlice::try_from(&img).expect("less than u32::MAX pixels"); // because of thumbnail
@@ -144,23 +118,6 @@ fn generate_and_print_palette(options: &Options) -> Result<(), ImageLoadError> {
     print_palette(&mut colors, options);
 
     Ok(())
-}
-
-/// Load the image at the given path
-#[cfg(feature = "avif")]
-fn load_image(path: &PathBuf) -> Result<DynamicImage, ImageLoadError> {
-    if path.extension().map_or(false, |ext| ext == "avif") {
-        let buf = std::fs::read(path).map_err(ImageLoadError::AvifRead)?;
-        libavif_image::read(&buf).map_err(ImageLoadError::AvifDecode)
-    } else {
-        image::open(path).map_err(ImageLoadError::ImageLoad)
-    }
-}
-
-/// Load the image at the given path
-#[cfg(not(feature = "avif"))]
-fn load_image(path: &PathBuf) -> Result<DynamicImage, ImageLoadError> {
-    image::open(path).map_err(ImageLoadError::ImageLoad)
 }
 
 /// Create a thumbnail with at most `max_pixels` pixels if the image has more than `max_pixels` pixels
@@ -421,7 +378,7 @@ mod tests {
     use super::*;
 
     fn load_img(image: &str) -> DynamicImage {
-        load_image(&PathBuf::from(image)).unwrap()
+        image::open(image).unwrap()
     }
 
     #[test]

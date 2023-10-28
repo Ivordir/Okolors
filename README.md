@@ -126,20 +126,11 @@ Here is the list of cargo features and supported image foramts:
 
 - `threads`: use multiple threads to generate palettes (enabled by default).
 
-- `jpeg`, `png`, `gif`, and `qoi`: support for these image formats is enabled by default through the `default_formats` feature.
-
-- `webp`: WebP support is not enabled by default, as it seems that the `image` crate still has lingering bugs for WebP in certain cases:
-[1](https://github.com/image-rs/image/issues/1873),
-[2](https://github.com/image-rs/image/issues/1872),
-[3](https://github.com/image-rs/image/issues/1712),
-[4](https://github.com/image-rs/image/issues/1647).
-Panics and bugs resulting from this should be directed upstream.
-
-- `avif`: similarly, due an [issue](https://github.com/image-rs/image/issues/1647) with AVIF support in the `image` crate,
-this feature is not enabled by default and instead uses the `libavif-image` crate.
-Compiling with this feature requires cmake and nasm on the system.
+- `jpeg`, `png`, `gif`, `webp`, and `qoi`: support for these image formats is enabled by default through the `default_formats` feature.
 
 - `bmp` and `tiff`: support for these image formats is not enabled by default.
+
+- `pnm`: support for PBM, PGM, and PPM is not enabled by default.
 
 # References
 
