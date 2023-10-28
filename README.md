@@ -15,8 +15,7 @@ The [Okhsl](https://bottosson.github.io/posts/colorpicker/) color space is ideal
 because as the lightness is changed, Okhsl preserves the hue and saturation of the color
 (better than other color spaces like HSL).
 
-Okolors supports jpeg, png, gif, and qoi images by default.
-See the [features](#features) section for more info.
+Okolors supports jpeg, png, gif, webp, and qoi images by default.
 Precompiled binaries are available on [Github](https://github.com/Ivordir/Okolors/releases).
 
 If you are looking for the Okolors library, see the crates.io page or the documentation:
@@ -119,18 +118,6 @@ The only other flag used was `-t 4` to use 4 threads.
 
 Oftentimes, especially for large images, loading the image from disk takes longer
 than it does for Okolors to generate the palette!
-
-# Features
-
-Here is the list of cargo features and supported image foramts:
-
-- `threads`: use multiple threads to generate palettes (enabled by default).
-
-- `jpeg`, `png`, `gif`, `webp`, and `qoi`: support for these image formats is enabled by default through the `default_formats` feature.
-
-- `bmp` and `tiff`: support for these image formats is not enabled by default.
-
-- `pnm`: support for PBM, PGM, and PPM is not enabled by default.
 
 # References
 

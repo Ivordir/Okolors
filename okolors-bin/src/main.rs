@@ -417,50 +417,27 @@ mod tests {
     }
 
     #[test]
-    #[cfg(any(feature = "jpeg", feature = "threads"))]
     fn load_jpeg() {
         test_format("jpg");
     }
 
     #[test]
-    #[cfg(feature = "png")]
     fn load_png() {
         test_format("png");
     }
 
     #[test]
-    #[cfg(feature = "gif")]
     fn load_gif() {
         let _img = load_img("../img/formats/img/kmeans.gif");
     }
 
     #[test]
-    #[cfg(feature = "qoi")]
     fn load_qoi() {
         test_format("qoi");
     }
 
     #[test]
-    #[cfg(feature = "webp")]
     fn load_webp() {
         test_format("webp");
-    }
-
-    #[test]
-    #[cfg(feature = "avif")]
-    fn load_avif() {
-        test_format("avif");
-    }
-
-    #[test]
-    #[cfg(feature = "bmp")]
-    fn load_bmp() {
-        test_format("bmp");
-    }
-
-    #[test]
-    #[cfg(feature = "tiff")]
-    fn load_tiff() {
-        test_format("tiff");
     }
 }
