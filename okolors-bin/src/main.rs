@@ -208,7 +208,7 @@ fn palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> (Vec<Oklab
     (result.palette, result.counts)
 }
 
-/// temp
+/// Generate a palette from the given image and options
 #[cfg(not(feature = "threads"))]
 fn get_palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> (Vec<Oklab>, Vec<u32>) {
     palette_counts(colors, options)
