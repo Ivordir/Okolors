@@ -150,7 +150,7 @@ fn parse_float_in_range(s: &str, range: RangeInclusive<f32>) -> Result<f32, Stri
         Ok(value)
     } else {
         Err(format!(
-            "not in the range [{},{}]",
+            "not in the range [{}, {}]",
             range.start(),
             range.end()
         ))
