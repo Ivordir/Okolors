@@ -133,6 +133,8 @@ use image::RgbImage;
 /// # Ok(())
 /// # }
 /// ```
+///
+#[derive(Debug, Clone)]
 pub struct Okolors<'a> {
     /// The colors to create a palette from.
     colors: ColorSlice<'a, Srgb<u8>>,
@@ -142,6 +144,8 @@ pub struct Okolors<'a> {
     palette_size: PaletteSize,
     /// The percentage of the unique colors to sample.
     sampling_factor: f32,
+    /// Return the palette sorted by increasing frequency.
+    sort_by_frequency: bool,
     /// The batch size for parallel k-means.
     #[allow(unused)]
     batch_size: u32,
@@ -186,6 +190,7 @@ impl<'a> Okolors<'a> {
             lightness_weight: 0.325,
             palette_size: 8.into(),
             sampling_factor: 0.5,
+            sort_by_frequency: false,
             batch_size: 4096,
             seed: 0,
         }
@@ -227,6 +232,17 @@ impl<'a> Okolors<'a> {
         self
     }
 
+    /// Sort the returned palette by ascending frequency.
+    ///
+    /// Frequency refers to the number of pixels in the image that are most similar to the palette color.
+    /// I.e., the number of pixels assigned to the palette color.
+    ///
+    /// By default, the palette is not sorted.
+    pub fn sort_by_frequency(&mut self, sort: bool) -> &mut Self {
+        self.sort_by_frequency = sort;
+        self
+    }
+
     /// Sets the seed value for the random number generator.
     ///
     /// The default seed is `0`.
@@ -244,17 +260,24 @@ impl<'a> Okolors<'a> {
             palette_size,
             seed,
             sampling_factor,
+            sort_by_frequency,
             ..
         } = *self;
 
         let unique = internal::unique_oklab_counts(colors, lightness_weight);
-        let palette = internal::wu_palette(&unique, palette_size, lightness_weight).palette;
+        let result = internal::wu_palette(&unique, palette_size, lightness_weight);
         let samples = internal::num_samples(&unique, sampling_factor);
 
-        let mut palette = if samples == 0 {
-            palette
+        let result = if samples == 0 {
+            result
         } else {
-            internal::kmeans_palette(&unique, samples, palette, seed).palette
+            internal::kmeans_palette(&unique, samples, result.palette, seed)
+        };
+
+        let mut palette = if sort_by_frequency {
+            internal::sort_by_frequency(result)
+        } else {
+            result.palette
         };
 
         internal::restore_lightness(&mut palette, lightness_weight);
@@ -308,19 +331,26 @@ impl<'a> Okolors<'a> {
             lightness_weight,
             palette_size,
             sampling_factor,
+            sort_by_frequency,
             batch_size,
             seed,
             ..
         } = *self;
 
         let unique = internal::unique_oklab_counts_par(colors, lightness_weight);
-        let palette = internal::wu_palette_par(&unique, palette_size, lightness_weight).palette;
+        let result = internal::wu_palette_par(&unique, palette_size, lightness_weight);
         let samples = internal::num_samples(&unique, sampling_factor);
 
-        let mut palette = if samples < batch_size {
-            palette
+        let result = if samples < batch_size {
+            result
         } else {
-            internal::kmeans_palette_par(&unique, samples, batch_size, palette, seed).palette
+            internal::kmeans_palette_par(&unique, samples, batch_size, result.palette, seed)
+        };
+
+        let mut palette = if sort_by_frequency {
+            internal::sort_by_frequency(result)
+        } else {
+            result.palette
         };
 
         internal::restore_lightness(&mut palette, lightness_weight);

@@ -43,7 +43,7 @@ use clap::Parser;
 use colored::Colorize;
 use image::{DynamicImage, GenericImageView, ImageError};
 use palette::{FromColor, Okhsl, Oklab, Srgb};
-use quantette::ColorSlice;
+use quantette::{ColorSlice, QuantizeOutput};
 
 /// Record the running time of a function and print the elapsed time
 macro_rules! time {
@@ -101,7 +101,7 @@ fn generate_and_print_palette(options: &Options) -> Result<(), ImageError> {
     let slice = ColorSlice::try_from(&img).expect("less than u32::MAX pixels"); // because of thumbnail
 
     // Processing
-    let (palette, counts) = {
+    let result = {
         let start = Instant::now();
         let result = get_palette_counts(slice, options);
         if options.verbose {
@@ -114,7 +114,7 @@ fn generate_and_print_palette(options: &Options) -> Result<(), ImageError> {
     };
 
     // Output
-    let mut colors = sorted_colors(&palette, &counts, options);
+    let mut colors = sorted_colors(result, options);
     print_palette(&mut colors, options);
 
     Ok(())
@@ -157,7 +157,7 @@ fn generate_thumbnail(image: DynamicImage, max_pixels: u32, verbose: bool) -> Dy
 }
 
 /// Generate a palette from the given image and options
-fn palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> (Vec<Oklab>, Vec<u32>) {
+fn palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> QuantizeOutput<Oklab> {
     let Options {
         lightness_weight,
         k,
@@ -205,18 +205,18 @@ fn palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> (Vec<Oklab
 
     okolors::restore_lightness(&mut result.palette, lightness_weight);
 
-    (result.palette, result.counts)
+    result
 }
 
 /// Generate a palette from the given image and options
 #[cfg(not(feature = "threads"))]
-fn get_palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> (Vec<Oklab>, Vec<u32>) {
+fn get_palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> QuantizeOutput<Oklab> {
     palette_counts(colors, options)
 }
 
 /// Generate a palette from the given image and options
 #[cfg(feature = "threads")]
-fn get_palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> (Vec<Oklab>, Vec<u32>) {
+fn get_palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> QuantizeOutput<Oklab> {
     let Options {
         lightness_weight,
         k,
@@ -269,36 +269,56 @@ fn get_palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> (Vec<O
 
         okolors::restore_lightness(&mut result.palette, lightness_weight);
 
-        (result.palette, result.counts)
+        result
     }
 }
 
 /// Convert [`Oklab`] colors to [`Okhsl`], sorting by the given metric.
-fn sorted_colors(palette: &[Oklab], counts: &[u32], options: &Options) -> Vec<Okhsl> {
-    let mut avg_colors = palette
-        .iter()
-        .map(|&color| Okhsl::from_color(color))
-        .zip(counts)
-        .collect::<Vec<_>>();
+fn sorted_colors(result: QuantizeOutput<Oklab>, options: &Options) -> Vec<Okhsl> {
+    /// temp
+    fn to_okhsl(oklab: Vec<Oklab>) -> Vec<Okhsl> {
+        oklab.into_iter().map(Okhsl::from_color).collect()
+    }
+
+    /// temp
+    fn sort_by_component(
+        result: QuantizeOutput<Oklab>,
+        reverse: bool,
+        component: impl Fn(&Okhsl) -> f32,
+    ) -> Vec<Okhsl> {
+        let mut colors = to_okhsl(result.palette);
+
+        colors.sort_by(|x, y| f32::total_cmp(&component(x), &component(y)));
+
+        if reverse {
+            colors.reverse();
+        }
+
+        colors
+    }
+
+    let reverse = options.reverse;
 
     match options.sort {
-        SortOutput::H => {
-            avg_colors.sort_by(|(x, _), (y, _)| f32::total_cmp(&x.hue.into(), &y.hue.into()));
-        }
-        SortOutput::S => {
-            avg_colors.sort_by(|(x, _), (y, _)| f32::total_cmp(&x.saturation, &y.saturation));
-        }
-        SortOutput::L => {
-            avg_colors.sort_by(|(x, _), (y, _)| f32::total_cmp(&x.lightness, &y.lightness));
-        }
-        SortOutput::N => avg_colors.sort_by_key(|&(_, count)| std::cmp::Reverse(count)),
-    }
+        SortOutput::H => sort_by_component(result, reverse, |c| c.hue.into()),
+        SortOutput::S => sort_by_component(result, reverse, |c| c.saturation),
+        SortOutput::L => sort_by_component(result, reverse, |c| c.lightness),
+        SortOutput::N => {
+            let result = QuantizeOutput {
+                palette: to_okhsl(result.palette),
+                counts: result.counts,
+                indices: result.indices,
+            };
 
-    if options.reverse {
-        avg_colors.reverse();
-    }
+            let mut colors = okolors::sort_by_frequency(result);
 
-    avg_colors.into_iter().map(|(color, _)| color).collect()
+            if !reverse {
+                colors.reverse();
+            }
+
+            colors
+        }
+    }
 }
 
 /// Print the given colors based off the provided options

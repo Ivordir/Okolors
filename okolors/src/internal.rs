@@ -110,3 +110,17 @@ pub fn restore_lightness(palette: &mut [Oklab], lightness_weight: f32) {
         color.l /= lightness_weight;
     }
 }
+
+/// Sort the palette by ascending frequency
+#[must_use]
+pub fn sort_by_frequency<Color>(output: QuantizeOutput<Color>) -> Vec<Color> {
+    let mut pairs = output
+        .palette
+        .into_iter()
+        .zip(output.counts)
+        .collect::<Vec<_>>();
+
+    pairs.sort_by_key(|&(_, n)| n);
+
+    pairs.into_iter().map(|(c, _)| c).collect()
+}
