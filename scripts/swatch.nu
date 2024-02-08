@@ -3,23 +3,23 @@
 let w = 40
 
 def main [] {
-  let colors = ($in | lines | each { split row ' ' })
+  let colors = lines | each { split row ' ' }
 
   let inner = (
     $colors
     | enumerate
-    | each { |line|
+    | each {|line|
       if $line.index == 0 {
         $line.item
         | enumerate
-        | each { |color|
+        | each {|color|
           $'  <use href="#swatch" x="($color.index * $w)" fill="rgb($color.item)"/>'
         }
       } else {
         let y = ($line.index * $w)
         $line.item
         | enumerate
-        | each { |color|
+        | each {|color|
           let x = ($color.index * $w)
           $'  <use href="#swatch" x="($x)" y="($y)" fill="rgb($color.item)"/>'
         }
