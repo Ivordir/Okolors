@@ -135,6 +135,7 @@ use image::RgbImage;
 /// ```
 ///
 #[derive(Debug, Clone)]
+#[must_use]
 pub struct Okolors<'a> {
     /// The colors to create a palette from.
     colors: ColorSlice<'a, Srgb<u8>>,
@@ -183,7 +184,6 @@ impl<'a> Okolors<'a> {
     ///
     /// Alternatively, use `Okolors::try_from` or
     /// `try_into` on an [`RgbImage`] or slice of [`Srgb<u8>`].
-    #[must_use]
     pub fn new(colors: ColorSlice<'a, Srgb<u8>>) -> Self {
         Self {
             colors,
@@ -208,7 +208,7 @@ impl<'a> Okolors<'a> {
     /// and it is clamped to this range otherwise.
     ///
     /// The default lightness weight is `0.325`.
-    pub fn lightness_weight(&mut self, lightness_weight: f32) -> &mut Self {
+    pub fn lightness_weight(mut self, lightness_weight: f32) -> Self {
         self.lightness_weight = lightness_weight.clamp(f32::EPSILON, 1.0);
         self
     }
@@ -216,7 +216,7 @@ impl<'a> Okolors<'a> {
     /// Sets the palette size which determines the (maximum) number of colors to have in the palette.
     ///
     /// The default palette size is `8`.
-    pub fn palette_size(&mut self, palette_size: PaletteSize) -> &mut Self {
+    pub fn palette_size(mut self, palette_size: PaletteSize) -> Self {
         self.palette_size = palette_size;
         self
     }
@@ -227,7 +227,7 @@ impl<'a> Okolors<'a> {
     /// Sampling factors can be above `1.0`, but this may not give noticeably better results.
     ///
     /// The default sampling factor is `0.5`, that is, to sample half of the colors.
-    pub fn sampling_factor(&mut self, sampling_factor: f32) -> &mut Self {
+    pub fn sampling_factor(mut self, sampling_factor: f32) -> Self {
         self.sampling_factor = sampling_factor;
         self
     }
@@ -238,7 +238,7 @@ impl<'a> Okolors<'a> {
     /// I.e., the number of pixels assigned to the palette color.
     ///
     /// By default, the palette is not sorted.
-    pub fn sort_by_frequency(&mut self, sort: bool) -> &mut Self {
+    pub fn sort_by_frequency(mut self, sort: bool) -> Self {
         self.sort_by_frequency = sort;
         self
     }
@@ -246,14 +246,14 @@ impl<'a> Okolors<'a> {
     /// Sets the seed value for the random number generator.
     ///
     /// The default seed is `0`.
-    pub fn seed(&mut self, seed: u64) -> &mut Self {
+    pub fn seed(mut self, seed: u64) -> Self {
         self.seed = seed;
         self
     }
 
     /// Computes the [`Oklab`] color palette.
     #[must_use]
-    pub fn oklab_palette(&self) -> Vec<Oklab> {
+    pub fn oklab_palette(self) -> Vec<Oklab> {
         let Self {
             lightness_weight,
             colors,
@@ -262,7 +262,7 @@ impl<'a> Okolors<'a> {
             sampling_factor,
             sort_by_frequency,
             ..
-        } = *self;
+        } = self;
 
         let unique = internal::unique_oklab_counts(colors, lightness_weight);
         let result = internal::wu_palette(&unique, palette_size, lightness_weight);
@@ -299,13 +299,13 @@ impl<'a> Okolors<'a> {
 
     /// Computes the [`Srgb<u8>`] color palette.
     #[must_use]
-    pub fn srgb8_palette(&self) -> Vec<Srgb<u8>> {
+    pub fn srgb8_palette(self) -> Vec<Srgb<u8>> {
         Self::convert_palette(self.oklab_palette())
     }
 
     /// Computes the [`Srgb`] color palette.
     #[must_use]
-    pub fn srgb_palette(&self) -> Vec<Srgb> {
+    pub fn srgb_palette(self) -> Vec<Srgb> {
         Self::convert_palette(self.oklab_palette())
     }
 }
@@ -318,14 +318,14 @@ impl<'a> Okolors<'a> {
     /// Smaller batch sizes are more accurate but slower to run.
     ///
     /// The default batch size is `4096`.
-    pub fn batch_size(&mut self, batch_size: u32) -> &mut Self {
+    pub fn batch_size(mut self, batch_size: u32) -> Self {
         self.batch_size = batch_size;
         self
     }
 
     /// Computes the [`Oklab`] color palette in parallel.
     #[must_use]
-    pub fn oklab_palette_par(&self) -> Vec<Oklab> {
+    pub fn oklab_palette_par(self) -> Vec<Oklab> {
         let Self {
             colors,
             lightness_weight,
@@ -335,7 +335,7 @@ impl<'a> Okolors<'a> {
             batch_size,
             seed,
             ..
-        } = *self;
+        } = self;
 
         let unique = internal::unique_oklab_counts_par(colors, lightness_weight);
         let result = internal::wu_palette_par(&unique, palette_size, lightness_weight);
@@ -360,13 +360,13 @@ impl<'a> Okolors<'a> {
 
     /// Computes the [`Srgb<u8>`] color palette in parallel.
     #[must_use]
-    pub fn srgb8_palette_par(&self) -> Vec<Srgb<u8>> {
+    pub fn srgb8_palette_par(self) -> Vec<Srgb<u8>> {
         Self::convert_palette(self.oklab_palette_par())
     }
 
     /// Computes the [`Srgb`] color palette in parallel.
     #[must_use]
-    pub fn srgb_palette_par(&self) -> Vec<Srgb> {
+    pub fn srgb_palette_par(self) -> Vec<Srgb> {
         Self::convert_palette(self.oklab_palette_par())
     }
 }
