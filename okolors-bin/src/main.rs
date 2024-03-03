@@ -275,12 +275,12 @@ fn get_palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> Quanti
 
 /// Convert [`Oklab`] colors to [`Okhsl`], sorting by the given metric.
 fn sorted_colors(result: QuantizeOutput<Oklab>, options: &Options) -> Vec<Okhsl> {
-    /// temp
+    /// Convert `Oklab` to `Okhsl`
     fn to_okhsl(oklab: Vec<Oklab>) -> Vec<Okhsl> {
         oklab.into_iter().map(Okhsl::from_color).collect()
     }
 
-    /// temp
+    /// Convert `Oklab` to `Okhsl`, sorting by the given `Okhsl` component
     fn sort_by_component(
         result: QuantizeOutput<Oklab>,
         reverse: bool,
