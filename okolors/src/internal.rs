@@ -3,7 +3,13 @@
 //!
 //! This module contains low level functions for use in the Okolors CLI application.
 
-use palette::{FromColor, Oklab, Srgb};
+use crate::{Oklab, Srgb};
+
+use palette::{
+    encoding::{self, FromLinear},
+    rgb::RgbStandard,
+    FromColor, LinSrgb,
+};
 use quantette::{
     kmeans::{self, Centroids},
     wu::{self, FloatBinner},
@@ -123,4 +129,16 @@ pub fn sort_by_frequency<Color>(output: QuantizeOutput<Color>) -> Vec<Color> {
     pairs.sort_by_key(|&(_, n)| n);
 
     pairs.into_iter().map(|(c, _)| c).collect()
+}
+
+/// Convert an [`Oklab`] palette to an [`Srgb`] palette.
+#[must_use]
+pub fn oklab_to_srgb<T>(oklab: Vec<Oklab>) -> Vec<Srgb<T>>
+where
+    <encoding::Srgb as RgbStandard>::TransferFn: FromLinear<f32, T>,
+{
+    oklab
+        .into_iter()
+        .map(|oklab| LinSrgb::from_color(oklab).into_encoding())
+        .collect()
 }

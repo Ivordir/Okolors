@@ -103,15 +103,19 @@ mod internal;
 #[cfg(feature = "_internal")]
 pub mod internal;
 
-use palette::{
-    encoding::{self, FromLinear},
-    rgb::RgbStandard,
-    FromColor, LinSrgb, Oklab, Srgb,
-};
-use quantette::{AboveMaxLen, ColorSlice, PaletteSize, QuantizeOutput};
+use quantette::QuantizeOutput;
 
 #[cfg(feature = "image")]
 use image::RgbImage;
+use palette::{Oklab, Srgb};
+
+// Re-export third-party crates whoose types are part of our public API
+#[cfg(feature = "image")]
+pub use image;
+pub use palette;
+
+// We have tight integration/control over `quantette`, let's re-export the types directly.
+pub use quantette::{AboveMaxLen, ColorSlice, PaletteSize};
 
 /// A builder struct to specify options for palette generation.
 ///
@@ -308,28 +312,16 @@ impl<'a> Okolors<'a> {
         palette
     }
 
-    /// Convert an [`Oklab`] palette to an [`Srgb`] palette.
-    #[must_use]
-    fn convert_palette<T>(oklab: Vec<Oklab>) -> Vec<Srgb<T>>
-    where
-        <encoding::Srgb as RgbStandard>::TransferFn: FromLinear<f32, T>,
-    {
-        oklab
-            .into_iter()
-            .map(|oklab| LinSrgb::from_color(oklab).into_encoding())
-            .collect()
-    }
-
     /// Computes the [`Srgb<u8>`] color palette.
     #[must_use]
     pub fn srgb8_palette(self) -> Vec<Srgb<u8>> {
-        Self::convert_palette(self.oklab_palette())
+        internal::oklab_to_srgb(self.oklab_palette())
     }
 
     /// Computes the [`Srgb`] color palette.
     #[must_use]
     pub fn srgb_palette(self) -> Vec<Srgb> {
-        Self::convert_palette(self.oklab_palette())
+        internal::oklab_to_srgb(self.oklab_palette())
     }
 }
 
@@ -348,7 +340,7 @@ impl<'a> Okolors<'a> {
 
     /// Sets whether or not to use multiple threads to compute the palette.
     ///
-    /// The number of threads can be configured using a [rayon](rayon) thread pool.
+    /// The number of threads can be configured using a `rayon` thread pool.
     ///
     /// By default, single-threaded execution is used.
     pub fn parallel(mut self, parallel: bool) -> Self {
