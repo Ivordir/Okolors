@@ -18,7 +18,7 @@ image = ["quantette/image", "dep:image"]
 
 # Exposes the `internal` module which currently does not follow semantic versioning.
 # This is intended to be used by the Okolors CLI application.
-internal = []
+_internal = []
 
 [dependencies]
 quantette = { version = "0.1.0", default-features = false, features = ["kmeans", "colorspaces"] }

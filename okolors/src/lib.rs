@@ -97,10 +97,10 @@
     clippy::unreadable_literal
 )]
 
-#[cfg(not(feature = "internal"))]
+#[cfg(not(feature = "_internal"))]
 mod internal;
 
-#[cfg(feature = "internal")]
+#[cfg(feature = "_internal")]
 pub mod internal;
 
 use palette::{
