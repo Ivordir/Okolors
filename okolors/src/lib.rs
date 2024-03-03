@@ -64,11 +64,7 @@
 //! # }
 //! ```
 //!
-//! If the `threads` feature is enabled, parallel versions of the palette functions
-//! are available:
-//! - [`Okolors::srgb8_palette_par`]
-//! - [`Okolors::srgb_palette_par`]
-//! - [`Okolors::oklab_palette_par`]
+//! If the `threads` feature is enabled, you can enable parallelism with [`Okolors::parallel`].
 
 #![deny(unsafe_code, unsafe_op_in_unsafe_fn)]
 #![warn(
@@ -112,7 +108,7 @@ use palette::{
     rgb::RgbStandard,
     FromColor, LinSrgb, Oklab, Srgb,
 };
-use quantette::{AboveMaxLen, ColorSlice, PaletteSize};
+use quantette::{AboveMaxLen, ColorSlice, PaletteSize, QuantizeOutput};
 
 #[cfg(feature = "image")]
 use image::RgbImage;
@@ -148,8 +144,11 @@ pub struct Okolors<'a> {
     /// Return the palette sorted by increasing frequency.
     sort_by_frequency: bool,
     /// The batch size for parallel k-means.
-    #[allow(unused)]
+    #[cfg(feature = "threads")]
     batch_size: u32,
+    /// Whether or not to use parallelism.
+    #[cfg(feature = "threads")]
+    parallel: bool,
     /// The seed value for the random number generator.
     seed: u64,
 }
@@ -191,7 +190,10 @@ impl<'a> Okolors<'a> {
             palette_size: 8.into(),
             sampling_factor: 0.5,
             sort_by_frequency: false,
+            #[cfg(feature = "threads")]
             batch_size: 4096,
+            #[cfg(feature = "threads")]
+            parallel: false,
             seed: 0,
         }
     }
@@ -251,36 +253,57 @@ impl<'a> Okolors<'a> {
         self
     }
 
-    /// Computes the [`Oklab`] color palette.
-    #[must_use]
-    pub fn oklab_palette(self) -> Vec<Oklab> {
+    /// Computes the [`Oklab`] quatization output.
+    fn oklab_quantize_result(&self) -> QuantizeOutput<Oklab> {
         let Self {
             lightness_weight,
             colors,
             palette_size,
             seed,
             sampling_factor,
-            sort_by_frequency,
+            #[cfg(feature = "threads")]
+            batch_size,
+            #[cfg(feature = "threads")]
+            parallel,
             ..
-        } = self;
+        } = *self;
+
+        #[cfg(feature = "threads")]
+        if parallel {
+            let unique = internal::unique_oklab_counts_par(colors, lightness_weight);
+            let result = internal::wu_palette_par(&unique, palette_size, lightness_weight);
+            let samples = internal::num_samples(&unique, sampling_factor);
+
+            return if samples < batch_size {
+                result
+            } else {
+                internal::kmeans_palette_par(&unique, samples, batch_size, result.palette, seed)
+            };
+        }
 
         let unique = internal::unique_oklab_counts(colors, lightness_weight);
         let result = internal::wu_palette(&unique, palette_size, lightness_weight);
         let samples = internal::num_samples(&unique, sampling_factor);
 
-        let result = if samples == 0 {
+        if samples == 0 {
             result
         } else {
             internal::kmeans_palette(&unique, samples, result.palette, seed)
-        };
+        }
+    }
 
-        let mut palette = if sort_by_frequency {
+    /// Computes the [`Oklab`] color palette.
+    #[must_use]
+    pub fn oklab_palette(self) -> Vec<Oklab> {
+        let result = self.oklab_quantize_result();
+
+        let mut palette = if self.sort_by_frequency {
             internal::sort_by_frequency(result)
         } else {
             result.palette
         };
 
-        internal::restore_lightness(&mut palette, lightness_weight);
+        internal::restore_lightness(&mut palette, self.lightness_weight);
 
         palette
     }
@@ -323,51 +346,14 @@ impl<'a> Okolors<'a> {
         self
     }
 
-    /// Computes the [`Oklab`] color palette in parallel.
-    #[must_use]
-    pub fn oklab_palette_par(self) -> Vec<Oklab> {
-        let Self {
-            colors,
-            lightness_weight,
-            palette_size,
-            sampling_factor,
-            sort_by_frequency,
-            batch_size,
-            seed,
-            ..
-        } = self;
-
-        let unique = internal::unique_oklab_counts_par(colors, lightness_weight);
-        let result = internal::wu_palette_par(&unique, palette_size, lightness_weight);
-        let samples = internal::num_samples(&unique, sampling_factor);
-
-        let result = if samples < batch_size {
-            result
-        } else {
-            internal::kmeans_palette_par(&unique, samples, batch_size, result.palette, seed)
-        };
-
-        let mut palette = if sort_by_frequency {
-            internal::sort_by_frequency(result)
-        } else {
-            result.palette
-        };
-
-        internal::restore_lightness(&mut palette, lightness_weight);
-
-        palette
-    }
-
-    /// Computes the [`Srgb<u8>`] color palette in parallel.
-    #[must_use]
-    pub fn srgb8_palette_par(self) -> Vec<Srgb<u8>> {
-        Self::convert_palette(self.oklab_palette_par())
-    }
-
-    /// Computes the [`Srgb`] color palette in parallel.
-    #[must_use]
-    pub fn srgb_palette_par(self) -> Vec<Srgb> {
-        Self::convert_palette(self.oklab_palette_par())
+    /// Sets whether or not to use multiple threads to compute the palette.
+    ///
+    /// The number of threads can be configured using a [rayon](rayon) thread pool.
+    ///
+    /// By default, single-threaded execution is used.
+    pub fn parallel(mut self, parallel: bool) -> Self {
+        self.parallel = parallel;
+        self
     }
 }
 
@@ -413,7 +399,8 @@ mod tests {
                 .unwrap()
                 .palette_size(PaletteSize::MAX)
                 .batch_size(64)
-                .oklab_palette_par();
+                .parallel(true)
+                .oklab_palette();
 
             assert!(palette.len() <= k);
         }
@@ -435,7 +422,8 @@ mod tests {
                 .unwrap()
                 .sampling_factor(0.0)
                 .batch_size(64)
-                .oklab_palette_par();
+                .parallel(true)
+                .oklab_palette();
 
             assert_eq!(palette.len(), 8);
         }
@@ -448,7 +436,8 @@ mod tests {
         let palette = Okolors::try_from(colors.as_slice())
             .unwrap()
             .batch_size(0)
-            .oklab_palette_par();
+            .parallel(true)
+            .oklab_palette();
 
         assert_eq!(palette.len(), 8);
     }
