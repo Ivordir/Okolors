@@ -157,9 +157,9 @@ fn parse_float_in_range(s: &str, range: RangeInclusive<f32>) -> Result<f32, Stri
     }
 }
 
-/// Parse the sampling factor and ensure it is in `0.0..=1.0`
+/// Parse the sampling factor and ensure it is >= `0.0`
 fn parse_sampling_factor(s: &str) -> Result<f32, String> {
-    parse_float_in_range(s, 0.0..=1.0)
+    parse_float_in_range(s, 0.0..=f32::INFINITY)
 }
 
 /// The factor used to scale the lightness values for a better interface,
