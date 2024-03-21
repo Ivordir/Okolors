@@ -108,7 +108,7 @@ use quantette::QuantizeOutput;
 use image::RgbImage;
 use palette::{Oklab, Srgb};
 
-// Re-export third-party crates whoose types are part of our public API
+// Re-export third-party crates whose types are part of our public API
 #[cfg(feature = "image")]
 pub use image;
 pub use palette;
