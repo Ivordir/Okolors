@@ -50,7 +50,7 @@ macro_rules! time {
         let start = Instant::now();
         let result = $func_call;
         if $verbose {
-            println!("{} took {}ms", $name, start.elapsed().as_millis());
+            eprintln!("{} took {}ms", $name, start.elapsed().as_millis());
         }
         result
     }};
@@ -104,7 +104,7 @@ fn generate_and_print_palette(options: &Options) -> Result<(), ImageError> {
         let start = Instant::now();
         let result = get_palette_counts(slice, options);
         if options.verbose {
-            println!(
+            eprintln!(
                 "Palette generation took {}ms in total",
                 start.elapsed().as_millis()
             );
@@ -126,7 +126,7 @@ fn generate_thumbnail(image: DynamicImage, max_pixels: u32, verbose: bool) -> Dy
     let pixels = u64::from(width) * u64::from(height);
     if pixels <= u64::from(max_pixels) {
         if verbose {
-            println!("Skipping image thumbnail since pixels was below max pixels");
+            eprintln!("Skipping image thumbnail since pixels was below max pixels");
         }
 
         image
@@ -144,7 +144,7 @@ fn generate_thumbnail(image: DynamicImage, max_pixels: u32, verbose: bool) -> Dy
         );
 
         if verbose {
-            println!("Creating a thumbnail with dimensions {thumb_width}x{thumb_height}");
+            eprintln!("Creating a thumbnail with dimensions {thumb_width}x{thumb_height}");
         }
 
         time!(
@@ -173,7 +173,7 @@ fn palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> QuantizeOu
     );
 
     if verbose {
-        println!("Reduced image to {} unique colors", unique.num_colors());
+        eprintln!("Reduced image to {} unique colors", unique.num_colors());
     }
 
     let centroids = time!(
@@ -186,13 +186,13 @@ fn palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> QuantizeOu
 
     let mut result = if samples == 0 {
         if verbose {
-            println!("Skipping k-means since samples was 0");
+            eprintln!("Skipping k-means since samples was 0");
         }
 
         centroids
     } else {
         if verbose {
-            println!("Running k-means for {samples} samples");
+            eprintln!("Running k-means for {samples} samples");
         }
 
         time!(
@@ -237,7 +237,7 @@ fn get_palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> Quanti
         );
 
         if verbose {
-            println!("Reduced image to {} unique colors", unique.num_colors());
+            eprintln!("Reduced image to {} unique colors", unique.num_colors());
         }
 
         let centroids = time!(
@@ -250,13 +250,13 @@ fn get_palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> Quanti
 
         let mut result = if samples < batch_size {
             if verbose {
-                println!("Skipping k-means since the number of samples was too low");
+                eprintln!("Skipping k-means since the number of samples was too low");
             }
 
             centroids
         } else {
             if verbose {
-                println!("Running k-means for {samples} samples with batch size {batch_size}");
+                eprintln!("Running k-means for {samples} samples with batch size {batch_size}");
             }
 
             time!(
