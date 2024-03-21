@@ -230,6 +230,7 @@ impl<'a> Okolors<'a> {
     ///
     /// Higher sampling factors take longer but give more accurate results.
     /// Sampling factors can be above `1.0`, but this may not give noticeably better results.
+    /// Negative, NAN, or zero sampling factors will skip k-means optimization.
     ///
     /// The default sampling factor is `0.5`, that is, to sample half of the colors.
     pub fn sampling_factor(mut self, sampling_factor: f32) -> Self {
