@@ -258,18 +258,6 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "image"
-version = "0.24.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5690139d2f55868e080017335e4b94cb7414274c74f1669c84fb5feba2c9f69d"
-dependencies = [
- "bytemuck",
- "byteorder",
- "color_quant",
- "num-traits",
-]
-
-[[package]]
-name = "image"
 version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a9b4f005360d32e9325029b38ba47ebd7a56f3316df09249368939562d518645"
@@ -332,7 +320,7 @@ dependencies = [
 name = "okolors"
 version = "0.6.0"
 dependencies = [
- "image 0.25.0",
+ "image",
  "palette",
  "quantette",
 ]
@@ -343,7 +331,7 @@ version = "0.6.0"
 dependencies = [
  "clap",
  "colored",
- "image 0.25.0",
+ "image",
  "okolors",
  "palette",
  "quantette",
@@ -368,7 +356,6 @@ dependencies = [
  "approx",
  "fast-srgb8",
  "palette_derive",
- "wide",
 ]
 
 [[package]]
@@ -415,12 +402,12 @@ dependencies = [
 
 [[package]]
 name = "quantette"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8cae8af88492596b450fe4c5c13fc53c4cf00b2c717618c44612d903cd6808a"
+checksum = "a6c483018bede1ec4c8bee28ee52edc38292aa7bf98b89b3c3ebf953d8c08416"
 dependencies = [
  "bitvec",
- "image 0.24.9",
+ "image",
  "num-traits",
  "ordered-float",
  "palette",

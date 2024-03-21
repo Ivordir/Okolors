@@ -21,6 +21,6 @@ image = ["quantette/image", "dep:image"]
 _internal = []
 
 [dependencies]
-quantette = { version = "0.1.0", default-features = false, features = ["kmeans", "colorspaces"] }
+quantette = { version = "0.2.0", default-features = false, features = ["kmeans", "colorspaces"] }
 palette = { version = "0.7.3", default-features = false }
 image = { version = "0.25.0", default-features = false, optional = true }
