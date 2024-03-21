@@ -328,11 +328,9 @@ fn sorted_colors(result: QuantizeOutput<Oklab>, options: &Options) -> Vec<Okhsl>
 fn print_palette(colors: &mut [Okhsl], options: &Options) {
     match options.output {
         FormatOutput::Hex => color_format_print(colors, options, " ", |color| format!("{color:X}")),
-
         FormatOutput::Rgb => color_format_print(colors, options, " ", |color| {
             format!("({},{},{})", color.red, color.green, color.blue)
         }),
-
         FormatOutput::Swatch => format_print(colors, options, "", |color| {
             "   "
                 .on_truecolor(color.red, color.green, color.blue)
@@ -388,13 +386,11 @@ fn color_format_print(
                 .truecolor(color.red, color.green, color.blue)
                 .to_string()
         }),
-
         Some(ColorizeOutput::Bg) => format_print(colors, options, delimiter, |color| {
             format(color)
                 .on_truecolor(color.red, color.green, color.blue)
                 .to_string()
         }),
-
         None => format_print(colors, options, delimiter, format),
     }
 }
