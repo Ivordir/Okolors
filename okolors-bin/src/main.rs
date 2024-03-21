@@ -11,7 +11,6 @@
     clippy::unwrap_used,
     clippy::unwrap_in_result,
     clippy::unneeded_field_pattern,
-    clippy::rest_pat_in_fully_bound_structs,
     clippy::unnecessary_self_imports,
     clippy::str_to_string,
     clippy::string_to_string,
