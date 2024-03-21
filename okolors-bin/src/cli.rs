@@ -66,7 +66,7 @@ pub struct Options {
 
     /// A comma separated list of additional lightness levels that each color should be printed in
     ///
-    /// Lightness refers to Okhsl lightness with values in the range [0, 100].
+    /// Lightness refers to Okhsl lightness with values in the range [0.0, 100.0].
     /// A separate line is used for printing the colors at each lightness level.
     #[arg(short, long, value_delimiter = ',', value_parser = parse_lightness)]
     pub lightness_levels: Vec<f32>,
@@ -98,7 +98,8 @@ pub struct Options {
     /// the number of unique colors in the image
     ///
     /// Higher sampling factors take longer but give more accurate results.
-    /// Sampling factors can be above `1.0`, but this may not give noticeably better results.
+    /// The sampling factor can be above `1.0`, but this may not give noticeably better results.
+    /// The provided sampling factor should be non-negative.
     #[arg(short = 'f', long, default_value_t = 0.5, value_parser = parse_sampling_factor)]
     pub sampling_factor: f32,
 
