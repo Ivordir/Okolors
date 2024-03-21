@@ -100,7 +100,8 @@ Here are some more examples of Okolors in action. The only CLI flag used was `-s
 # Performance
 
 Okolors is designed with performance in mind and should give fast results for even very large images.
-This is despite using k-means which is more accurate but slower than something like median cut quantization. Below are the palette generation times as reported by the `--verbose` flag.
+This is despite using k-means which is more accurate but slower than something like median cut quantization.
+Below are the palette generation times as reported by the `--verbose` flag.
 The only other flag used was `-t 4` to use 4 threads.
 
 | Image               | Width | Height | Unique Colors | Time (ms) |
@@ -116,8 +117,7 @@ The only other flag used was `-t 4` to use 4 threads.
 | Český Krumlov (25%) | 1152  | 864    | 294989        | 20        |
 | Lake Mendota (25%)  | 960   | 1440   | 264149        | 18        |
 
-Oftentimes, especially for large images, loading the image from disk takes longer
-than it does for Okolors to generate the palette!
+Oftentimes, especially for large images, loading and decoding the image takes longer than it does for Okolors to generate the palette!
 
 # References
 
