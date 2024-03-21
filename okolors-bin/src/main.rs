@@ -34,7 +34,11 @@ mod cli;
 #[allow(clippy::wildcard_imports)]
 use cli::*;
 
-use std::{process::ExitCode, time::Instant};
+use std::{
+    io::{self, Write},
+    process::ExitCode,
+    time::Instant,
+};
 
 use okolors::internal as okolors;
 
@@ -337,16 +341,17 @@ fn print_palette(colors: &mut [Okhsl], options: &Options) {
     }
 }
 
-/// Print a line of colors using the given format
-fn print_colors(colors: &[Okhsl], delimiter: &str, format: impl Fn(Srgb<u8>) -> String) {
-    println!(
-        "{}",
-        colors
-            .iter()
-            .map(|&color| format(Srgb::from_color(color).into_format::<u8>()))
-            .collect::<Vec<_>>()
-            .join(delimiter)
-    );
+/// Format the given colors to create a line of text output
+fn output_colors_line(
+    colors: &[Okhsl],
+    delimiter: &str,
+    format: impl Fn(Srgb<u8>) -> String,
+) -> String {
+    colors
+        .iter()
+        .map(|&color| format(Srgb::from_color(color).into_format::<u8>()))
+        .collect::<Vec<_>>()
+        .join(delimiter)
 }
 
 /// Print all colors using the given format
@@ -356,14 +361,17 @@ fn format_print(
     delimiter: &str,
     format: impl Fn(Srgb<u8>) -> String,
 ) {
+    let mut stdout = io::stdout().lock();
     if !options.no_avg_lightness {
-        print_colors(colors, delimiter, &format);
+        let _ = stdout.write_all(output_colors_line(colors, delimiter, &format).as_bytes());
+        let _ = stdout.write(b"\n");
     }
     for &l in &options.lightness_levels {
         for color in &mut *colors {
             color.lightness = l / LIGHTNESS_SCALE;
         }
-        print_colors(colors, delimiter, &format);
+        let _ = stdout.write_all(output_colors_line(colors, delimiter, &format).as_bytes());
+        let _ = stdout.write(b"\n");
     }
 }
 
