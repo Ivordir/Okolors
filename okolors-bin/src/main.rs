@@ -35,7 +35,7 @@ mod cli;
 use cli::*;
 
 use std::{
-    io::{self, Write},
+    io::{self, StdoutLock, Write},
     process::ExitCode,
     time::Instant,
 };
@@ -43,7 +43,7 @@ use std::{
 use okolors::internal as okolors;
 
 use clap::Parser;
-use colored::Colorize;
+use colored::{ColoredString, Colorize};
 use image::{DynamicImage, GenericImageView, ImageError};
 use palette::{FromColor, Okhsl, Oklab, Srgb};
 use quantette::{ColorSlice, QuantizeOutput};
@@ -105,6 +105,9 @@ fn generate_and_print_palette(options: &Options) -> Result<(), ImageError> {
 
     // Processing
     let result = {
+        if options.verbose {
+            eprintln!("Starting palette generation...");
+        }
         let start = Instant::now();
         let result = get_palette_counts(slice, options);
         if options.verbose {
@@ -118,7 +121,7 @@ fn generate_and_print_palette(options: &Options) -> Result<(), ImageError> {
 
     // Output
     let mut colors = sorted_colors(result, options);
-    print_palette(&mut colors, options);
+    print_palette(&mut colors, options)?;
 
     Ok(())
 }
@@ -325,74 +328,57 @@ fn sorted_colors(result: QuantizeOutput<Oklab>, options: &Options) -> Vec<Okhsl>
 }
 
 /// Print the given colors based off the provided options
-fn print_palette(colors: &mut [Okhsl], options: &Options) {
-    match options.output {
-        FormatOutput::Hex => color_format_print(colors, options, " ", |color| format!("{color:X}")),
-        FormatOutput::Rgb => color_format_print(colors, options, " ", |color| {
-            format!("({},{},{})", color.red, color.green, color.blue)
-        }),
-        FormatOutput::Swatch => format_print(colors, options, "", |color| {
-            "   "
-                .on_truecolor(color.red, color.green, color.blue)
-                .to_string()
-        }),
-    }
-}
+fn print_palette(colors: &mut [Okhsl], options: &Options) -> io::Result<()> {
+    let (colorize, delimiter) = if matches!(options.output, FormatOutput::Swatch) {
+        (Some(ColorizeOutput::Bg), "")
+    } else {
+        (options.colorize, " ")
+    };
 
-/// Format the given colors to create a line of text output
-fn output_colors_line(
-    colors: &[Okhsl],
-    delimiter: &str,
-    format: impl Fn(Srgb<u8>) -> String,
-) -> String {
-    colors
-        .iter()
-        .map(|&color| format(Srgb::from_color(color).into_format::<u8>()))
-        .collect::<Vec<_>>()
-        .join(delimiter)
-}
+    let colorize = match colorize {
+        Some(ColorizeOutput::Fg) => ColoredString::truecolor,
+        Some(ColorizeOutput::Bg) => ColoredString::on_truecolor,
+        None => |s, _, _, _| s,
+    };
 
-/// Print all colors using the given format
-fn format_print(
-    colors: &mut [Okhsl],
-    options: &Options,
-    delimiter: &str,
-    format: impl Fn(Srgb<u8>) -> String,
-) {
-    let mut stdout = io::stdout().lock();
+    let format: fn(Srgb<u8>) -> _ = match options.output {
+        FormatOutput::Hex => |color| format!("{color:X}"),
+        FormatOutput::Rgb => |color| format!("({},{},{})", color.red, color.green, color.blue),
+        FormatOutput::Swatch => |_| "   ".into(),
+    };
+
+    let stdout = &mut io::stdout().lock();
     if !options.no_avg_lightness {
-        let _ = stdout.write_all(output_colors_line(colors, delimiter, &format).as_bytes());
-        let _ = stdout.write(b"\n");
+        print_colors_line(stdout, colors, delimiter, format, colorize)?;
     }
     for &l in &options.lightness_levels {
         for color in &mut *colors {
             color.lightness = l / LIGHTNESS_SCALE;
         }
-        let _ = stdout.write_all(output_colors_line(colors, delimiter, &format).as_bytes());
-        let _ = stdout.write(b"\n");
+        print_colors_line(stdout, colors, delimiter, format, colorize)?;
     }
+    Ok(())
 }
 
-/// Format, colorize, and then print the text for all colors
-fn color_format_print(
-    colors: &mut [Okhsl],
-    options: &Options,
+/// Format and colorize the given colors, printing them as a line of text output
+fn print_colors_line(
+    stdout: &mut StdoutLock,
+    colors: &[Okhsl],
     delimiter: &str,
-    format: impl Fn(Srgb<u8>) -> String,
-) {
-    match options.colorize {
-        Some(ColorizeOutput::Fg) => format_print(colors, options, delimiter, |color| {
-            format(color)
-                .truecolor(color.red, color.green, color.blue)
-                .to_string()
-        }),
-        Some(ColorizeOutput::Bg) => format_print(colors, options, delimiter, |color| {
-            format(color)
-                .on_truecolor(color.red, color.green, color.blue)
-                .to_string()
-        }),
-        None => format_print(colors, options, delimiter, format),
-    }
+    format: fn(Srgb<u8>) -> String,
+    colorize: fn(ColoredString, u8, u8, u8) -> ColoredString,
+) -> io::Result<()> {
+    let str = colors
+        .iter()
+        .map(|&color| {
+            let color = Srgb::from_color(color).into_format();
+            let text = format(color).into();
+            colorize(text, color.red, color.green, color.blue).to_string()
+        })
+        .collect::<Vec<_>>()
+        .join(delimiter);
+
+    writeln!(stdout, "{str}")
 }
 
 #[cfg(test)]
