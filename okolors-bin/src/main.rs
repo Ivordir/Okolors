@@ -43,7 +43,7 @@ use std::{
 use okolors::internal as okolors;
 
 use clap::Parser;
-use colored::{ColoredString, Colorize};
+use colored::{ColoredString, Colorize as _};
 use image::{DynamicImage, GenericImageView, ImageError};
 use palette::{FromColor, Okhsl, Oklab, Srgb};
 use quantette::{ColorSlice, QuantizeOutput};
@@ -306,10 +306,10 @@ fn sorted_colors(result: QuantizeOutput<Oklab>, options: &Options) -> Vec<Okhsl>
     let reverse = options.reverse;
 
     match options.sort {
-        SortOutput::H => sort_by_component(result, reverse, |c| c.hue.into()),
-        SortOutput::S => sort_by_component(result, reverse, |c| c.saturation),
-        SortOutput::L => sort_by_component(result, reverse, |c| c.lightness),
-        SortOutput::N => {
+        Sort::H => sort_by_component(result, reverse, |c| c.hue.into()),
+        Sort::S => sort_by_component(result, reverse, |c| c.saturation),
+        Sort::L => sort_by_component(result, reverse, |c| c.lightness),
+        Sort::N => {
             let result = QuantizeOutput {
                 palette: to_okhsl(result.palette),
                 counts: result.counts,
@@ -329,22 +329,22 @@ fn sorted_colors(result: QuantizeOutput<Oklab>, options: &Options) -> Vec<Okhsl>
 
 /// Print the given colors based off the provided options
 fn print_palette(colors: &mut [Okhsl], options: &Options) -> io::Result<()> {
-    let (colorize, delimiter) = if matches!(options.output, FormatOutput::Swatch) {
-        (Some(ColorizeOutput::Bg), "")
+    let (colorize, delimiter) = if matches!(options.format, Format::Swatch) {
+        (Some(Colorize::Bg), "")
     } else {
         (options.colorize, " ")
     };
 
     let colorize = match colorize {
-        Some(ColorizeOutput::Fg) => ColoredString::truecolor,
-        Some(ColorizeOutput::Bg) => ColoredString::on_truecolor,
+        Some(Colorize::Fg) => ColoredString::truecolor,
+        Some(Colorize::Bg) => ColoredString::on_truecolor,
         None => |s, _, _, _| s,
     };
 
-    let format: fn(Srgb<u8>) -> _ = match options.output {
-        FormatOutput::Hex => |color| format!("{color:X}"),
-        FormatOutput::Rgb => |color| format!("({},{},{})", color.red, color.green, color.blue),
-        FormatOutput::Swatch => |_| "   ".into(),
+    let format: fn(Srgb<u8>) -> _ = match options.format {
+        Format::Hex => |color| format!("{color:X}"),
+        Format::Rgb => |color| format!("({},{},{})", color.red, color.green, color.blue),
+        Format::Swatch => |_| "   ".into(),
     };
 
     let stdout = &mut io::stdout().lock();

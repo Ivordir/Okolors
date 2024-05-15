@@ -8,7 +8,7 @@ use quantette::{AboveMaxLen, PaletteSize};
 
 /// Supported output formats for the final colors
 #[derive(Copy, Clone, ValueEnum)]
-pub enum FormatOutput {
+pub enum Format {
     /// sRGB hexcode
     Hex,
     /// sRGB (r,g,b) triple
@@ -19,7 +19,7 @@ pub enum FormatOutput {
 
 /// Sort orders for the final colors
 #[derive(Copy, Clone, ValueEnum)]
-pub enum SortOutput {
+pub enum Sort {
     /// Ascending hue
     H,
     /// Ascending saturation
@@ -32,7 +32,7 @@ pub enum SortOutput {
 
 /// Ways to colorize the output text
 #[derive(Copy, Clone, ValueEnum)]
-pub enum ColorizeOutput {
+pub enum Colorize {
     /// Foreground
     Fg,
     /// Background
@@ -46,19 +46,19 @@ pub struct Options {
     /// The path to the input image
     pub image: PathBuf,
 
-    /// The format to print the colors in
-    #[arg(short, long, default_value = "hex")]
-    pub output: FormatOutput,
+    /// The output format to print the colors in
+    #[arg(short = 'o', long, default_value = "hex")]
+    pub format: Format,
 
     /// Color the foreground or background for each printed color
     #[arg(short, long)]
-    pub colorize: Option<ColorizeOutput>,
+    pub colorize: Option<Colorize>,
 
     /// The order to print the colors in
     ///
     /// The h, s, and l options below refer to Okhsl component values and not the HSL color space.
     #[arg(short, long, default_value = "n")]
-    pub sort: SortOutput,
+    pub sort: Sort,
 
     /// Reverse the printed order of the colors
     #[arg(short, long)]
