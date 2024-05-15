@@ -47,7 +47,7 @@ pub struct Options {
     pub image: PathBuf,
 
     /// The output format to print the colors in
-    #[arg(short = 'o', long, default_value = "hex")]
+    #[arg(short = 'o', long = "output", default_value = "hex")]
     pub format: Format,
 
     /// Color the foreground or background for each printed color
