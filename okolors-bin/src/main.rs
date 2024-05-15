@@ -61,6 +61,32 @@ macro_rules! time {
 }
 
 fn main() -> ExitCode {
+    #[cfg(unix)]
+    {
+        use nix::sys::signal::{sigaction, SaFlags, SigAction, SigHandler, SigSet, Signal};
+
+        // Currently, the Rust runtime unconditionally sets the SIGPIPE handler to ignore.
+        // This means writes to a broken stdout pipe can return an `Err` instead of exiting the process.
+        // Since we bubble up io errors, this will cause:
+        //   1. an error message to be printed
+        //   2. the shell will see that the process exited instead of being terminated by a signal
+        //
+        // The first issue can be solved by manually checking if the io error is due to a broken pipe.
+        // However, the second issue is more annoying. We would have to first set the SIGPIPE handler
+        // to something else (e.g., the default) and only then re-raise the SIGPIPE signal.
+        // Instead, let's just "restore" the signal handler to the default action from the start,
+        // so that the desired behavior happens automatically.
+        //
+        // Note that this is still not a fully robust solution, since the SIGPIPE handler
+        // inherited from the parent process is dropped in favor of the system default handler.
+        // This could be solved if the `unix_sigpipe` attribute were to somehow land.
+        // See: https://github.com/rust-lang/rust/issues/97889
+
+        let default = SigAction::new(SigHandler::SigDfl, SaFlags::empty(), SigSet::empty());
+        #[allow(unsafe_code)] // setting default handler on valid signal
+        unsafe { sigaction(Signal::SIGPIPE, &default) }.expect("set default SIGPIPE handler");
+    }
+
     let options = Options::parse();
 
     let result = run_generate_and_print_palette(&options);
