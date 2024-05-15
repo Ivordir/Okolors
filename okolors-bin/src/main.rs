@@ -74,7 +74,7 @@ fn main() -> ExitCode {
     }
 }
 
-/// Builds a thread pool and then runs `get_print_palette`
+/// Builds a thread pool and then runs `generate_and_print_palette`
 #[cfg(feature = "threads")]
 fn run_generate_and_print_palette(options: &Options) -> Result<(), ImageError> {
     let pool = rayon::ThreadPoolBuilder::new()
@@ -85,7 +85,7 @@ fn run_generate_and_print_palette(options: &Options) -> Result<(), ImageError> {
     pool.install(|| generate_and_print_palette(options))
 }
 
-/// Runs `get_print_palette` on a single thread
+/// Runs `generate_and_print_palette` on a single thread
 #[cfg(not(feature = "threads"))]
 fn run_generate_and_print_palette(options: &Options) -> Result<(), ImageError> {
     generate_and_print_palette(options)
