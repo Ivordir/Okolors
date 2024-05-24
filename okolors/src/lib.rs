@@ -39,7 +39,7 @@
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # let img = image::open("some image")?.into_rgb8();
 //! let palette_builder = Okolors::try_from(&img)?
-//!     .palette_size(16.into())
+//!     .palette_size(16)
 //!     .lightness_weight(0.5)
 //!     .sampling_factor(0.25);
 //! # Ok(())
@@ -124,7 +124,7 @@ pub use quantette::{AboveMaxLen, ColorSlice, PaletteSize};
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let img = image::open("some image")?.into_rgb8();
 /// let palette = Okolors::try_from(&img)?
-///     .palette_size(16.into())
+///     .palette_size(16)
 ///     .lightness_weight(0.5)
 ///     .sampling_factor(0.25)
 ///     .seed(42)
@@ -221,8 +221,8 @@ impl<'a> Okolors<'a> {
     /// Sets the palette size which determines the (maximum) number of colors to have in the palette.
     ///
     /// The default palette size is `8`.
-    pub fn palette_size(mut self, palette_size: PaletteSize) -> Self {
-        self.palette_size = palette_size;
+    pub fn palette_size(mut self, palette_size: impl Into<PaletteSize>) -> Self {
+        self.palette_size = palette_size.into();
         self
     }
 
