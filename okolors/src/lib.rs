@@ -6,7 +6,8 @@
 //!
 //! # Features
 //! This crate has two features that are enabled by default:
-//! - `threads`: adds parallel versions of the palette functions (see below).
+//! - `threads`: adds a few methods to the [`Okolors`] builder
+//!     ([`parallel`](Okolors::parallel) and [`batch_size`](Okolors::batch_size)).
 //! - `image`: enables integration with the [`image`] crate.
 //!
 //! # Examples
@@ -23,8 +24,7 @@
 //!
 //! Instead of an [`RgbImage`], a slice of [`Srgb<u8>`] colors can be used instead:
 //! ```
-//! # use okolors::Okolors;
-//! # use quantette::AboveMaxLen;
+//! # use okolors::{AboveMaxLen, Okolors};
 //! # use palette::Srgb;
 //! # fn main() -> Result<(), AboveMaxLen<u32>> {
 //! let srgb = vec![Srgb::new(0, 0, 0)];
@@ -34,14 +34,17 @@
 //! ```
 //!
 //! If the default options aren't to your liking, you can tweak them:
-//! ```no_run
-//! # use okolors::Okolors;
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # let img = image::open("some image")?.into_rgb8();
+//! ```
+//! # use okolors::{AboveMaxLen, Okolors};
+//! # use image::RgbImage;
+//! # fn main() -> Result<(), AboveMaxLen<u32>> {
+//! # let img = RgbImage::new(0, 0);
 //! let palette_builder = Okolors::try_from(&img)?
 //!     .palette_size(16)
 //!     .lightness_weight(0.5)
-//!     .sampling_factor(0.25);
+//!     .sampling_factor(0.25)
+//!     .parallel(true) // this option requires the `threads` feature
+//!     .sort_by_frequency(true);
 //! # Ok(())
 //! # }
 //! ```
@@ -53,18 +56,16 @@
 //!
 //! For example:
 //! ```
-//! # use okolors::Okolors;
-//! # use quantette::AboveMaxLen;
-//! # use palette::Srgb;
+//! # use okolors::{AboveMaxLen, Okolors};
 //! # fn main() -> Result<(), AboveMaxLen<u32>> {
-//! # let srgb = vec![Srgb::new(0, 0, 0)];
-//! # let palette_builder = Okolors::new(srgb.as_slice().try_into()?);
+//! # let palette_builder = Okolors::new([].as_slice().try_into()?);
 //! let palette = palette_builder.srgb8_palette();
 //! # Ok(())
 //! # }
 //! ```
 //!
-//! If the `threads` feature is enabled, you can enable parallelism with [`Okolors::parallel`].
+//! To clarify, the [`Oklab`] colorspace is used to quantize the colors in all cases.
+//! The methods above just determine what colorspace you want the final colors converted into.
 
 #![deny(unsafe_code, unsafe_op_in_unsafe_fn)]
 #![warn(
@@ -118,7 +119,11 @@ pub use quantette::{AboveMaxLen, ColorSlice, PaletteSize, MAX_COLORS, MAX_PIXELS
 
 /// A builder struct to specify options for palette generation.
 ///
+/// See the [crate] documentation for more information and examples.
+///
 /// # Examples
+///
+/// Here is an example workflow showcasing some of the more useful methods.
 /// ```no_run
 /// # use okolors::Okolors;
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -127,12 +132,11 @@ pub use quantette::{AboveMaxLen, ColorSlice, PaletteSize, MAX_COLORS, MAX_PIXELS
 ///     .palette_size(16)
 ///     .lightness_weight(0.5)
 ///     .sampling_factor(0.25)
-///     .seed(42)
+///     .sort_by_frequency(true)
 ///     .srgb8_palette();
 /// # Ok(())
 /// # }
 /// ```
-///
 #[derive(Debug, Clone)]
 #[must_use]
 pub struct Okolors<'a> {
@@ -157,8 +161,8 @@ pub struct Okolors<'a> {
 }
 
 impl<'a> From<ColorSlice<'a, Srgb<u8>>> for Okolors<'a> {
-    fn from(slice: ColorSlice<'a, Srgb<u8>>) -> Self {
-        Self::new(slice)
+    fn from(colors: ColorSlice<'a, Srgb<u8>>) -> Self {
+        Self::new(colors)
     }
 }
 
@@ -230,7 +234,8 @@ impl<'a> Okolors<'a> {
     ///
     /// Higher sampling factors take longer but give more accurate results.
     /// Sampling factors can be above `1.0`, but this may not give noticeably better results.
-    /// Negative, NAN, or zero sampling factors will skip k-means optimization.
+    /// Negative, NAN, or zero sampling factors will skip k-means optimization,
+    /// and the initial palette computed by the first histogram step will be returned.
     ///
     /// The default sampling factor is `0.5`, that is, to sample half of the colors.
     pub fn sampling_factor(mut self, sampling_factor: f32) -> Self {
@@ -296,7 +301,7 @@ impl<'a> Okolors<'a> {
         }
     }
 
-    /// Computes the [`Oklab`] color palette.
+    /// Computes the color palette and returns it as [`Oklab`] colors.
     #[must_use]
     pub fn oklab_palette(self) -> Vec<Oklab> {
         let result = self.oklab_quantize_result();
@@ -312,13 +317,13 @@ impl<'a> Okolors<'a> {
         palette
     }
 
-    /// Computes the [`Srgb<u8>`] color palette.
+    /// Computes the color palette and converts it to [`Srgb<u8>`] colors.
     #[must_use]
     pub fn srgb8_palette(self) -> Vec<Srgb<u8>> {
         internal::oklab_to_srgb(self.oklab_palette())
     }
 
-    /// Computes the [`Srgb`] color palette.
+    /// Computes the color palette and converts it to [`Srgb`] colors.
     #[must_use]
     pub fn srgb_palette(self) -> Vec<Srgb> {
         internal::oklab_to_srgb(self.oklab_palette())
