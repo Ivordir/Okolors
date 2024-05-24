@@ -13,8 +13,10 @@ use palette::{
 use quantette::{
     kmeans::{self, Centroids},
     wu::{self, FloatBinner},
-    ColorSlice, ColorSpace, PaletteSize, QuantizeOutput, UniqueColorCounts,
+    ColorSlice, ColorSpace, PaletteSize, UniqueColorCounts,
 };
+
+pub use quantette::QuantizeOutput;
 
 /// [`Oklab`] colors from deduplicated [`Srgb`] colors.
 pub type UniqueOklabCounts = UniqueColorCounts<Oklab, f32, 3>;

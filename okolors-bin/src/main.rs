@@ -40,13 +40,14 @@ use std::{
     time::Instant,
 };
 
-use okolors::internal as okolors;
-
 use clap::Parser;
 use colored::{ColoredString, Colorize as _};
 use image::{DynamicImage, GenericImageView, ImageError};
+use okolors::{
+    internal::{self, QuantizeOutput},
+    ColorSlice,
+};
 use palette::{FromColor, Okhsl, Oklab, Srgb};
-use quantette::{ColorSlice, QuantizeOutput};
 
 /// Record the running time of a function and print the elapsed time
 macro_rules! time {
@@ -202,7 +203,7 @@ fn palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> QuantizeOu
     let unique = time!(
         "Preprocessing",
         verbose,
-        okolors::unique_oklab_counts(colors, lightness_weight)
+        internal::unique_oklab_counts(colors, lightness_weight)
     );
 
     if verbose {
@@ -212,10 +213,10 @@ fn palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> QuantizeOu
     let centroids = time!(
         "Initial centroids",
         verbose,
-        okolors::wu_palette(&unique, k, lightness_weight)
+        internal::wu_palette(&unique, k, lightness_weight)
     );
 
-    let samples = okolors::num_samples(&unique, sampling_factor);
+    let samples = internal::num_samples(&unique, sampling_factor);
 
     let mut result = if samples == 0 {
         if verbose {
@@ -231,11 +232,11 @@ fn palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> QuantizeOu
         time!(
             "k-means",
             verbose,
-            okolors::kmeans_palette(&unique, samples, centroids.palette, seed)
+            internal::kmeans_palette(&unique, samples, centroids.palette, seed)
         )
     };
 
-    okolors::restore_lightness(&mut result.palette, lightness_weight);
+    internal::restore_lightness(&mut result.palette, lightness_weight);
 
     result
 }
@@ -266,7 +267,7 @@ fn get_palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> Quanti
         let unique = time!(
             "Preprocessing",
             verbose,
-            okolors::unique_oklab_counts_par(colors, lightness_weight)
+            internal::unique_oklab_counts_par(colors, lightness_weight)
         );
 
         if verbose {
@@ -276,10 +277,10 @@ fn get_palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> Quanti
         let centroids = time!(
             "Initial centroids",
             verbose,
-            okolors::wu_palette_par(&unique, k, lightness_weight)
+            internal::wu_palette_par(&unique, k, lightness_weight)
         );
 
-        let samples = okolors::num_samples(&unique, sampling_factor);
+        let samples = internal::num_samples(&unique, sampling_factor);
 
         let mut result = if samples < batch_size {
             if verbose {
@@ -295,11 +296,11 @@ fn get_palette_counts(colors: ColorSlice<Srgb<u8>>, options: &Options) -> Quanti
             time!(
                 "k-means",
                 verbose,
-                okolors::kmeans_palette_par(&unique, samples, batch_size, centroids.palette, seed)
+                internal::kmeans_palette_par(&unique, samples, batch_size, centroids.palette, seed)
             )
         };
 
-        okolors::restore_lightness(&mut result.palette, lightness_weight);
+        internal::restore_lightness(&mut result.palette, lightness_weight);
 
         result
     }
@@ -342,7 +343,7 @@ fn sorted_colors(result: QuantizeOutput<Oklab>, options: &Options) -> Vec<Okhsl>
                 indices: result.indices,
             };
 
-            let mut colors = okolors::sort_by_frequency(result);
+            let mut colors = internal::sort_by_frequency(result);
 
             if !reverse {
                 colors.reverse();

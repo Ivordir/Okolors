@@ -3,8 +3,8 @@
 use std::{ops::RangeInclusive, path::PathBuf};
 
 use clap::{Parser, ValueEnum};
+use okolors::{AboveMaxLen, PaletteSize};
 use palette::Okhsl;
-use quantette::{AboveMaxLen, PaletteSize};
 
 /// Supported output formats for the final colors
 #[derive(Copy, Clone, ValueEnum)]

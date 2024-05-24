@@ -365,7 +365,6 @@ dependencies = [
  "nix",
  "okolors",
  "palette",
- "quantette",
  "rayon",
 ]
 
