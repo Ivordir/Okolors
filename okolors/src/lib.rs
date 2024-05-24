@@ -114,7 +114,7 @@ pub use image;
 pub use palette;
 
 // We have tight integration/control over `quantette`, let's re-export the types directly.
-pub use quantette::{AboveMaxLen, ColorSlice, PaletteSize};
+pub use quantette::{AboveMaxLen, ColorSlice, PaletteSize, MAX_COLORS, MAX_PIXELS};
 
 /// A builder struct to specify options for palette generation.
 ///
