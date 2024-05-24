@@ -161,6 +161,7 @@ pub struct Okolors<'a> {
 }
 
 impl<'a> From<ColorSlice<'a, Srgb<u8>>> for Okolors<'a> {
+    /// Create a [`Okolors`] from a [`ColorSlice<Srgb<u8>>`].
     fn from(colors: ColorSlice<'a, Srgb<u8>>) -> Self {
         Self::new(colors)
     }
@@ -169,6 +170,8 @@ impl<'a> From<ColorSlice<'a, Srgb<u8>>> for Okolors<'a> {
 impl<'a> TryFrom<&'a [Srgb<u8>]> for Okolors<'a> {
     type Error = AboveMaxLen<u32>;
 
+    /// Try to create a [`Okolors`] from a slice of [`Srgb<u8>`] colors.
+    /// If the length of the slice is above [`MAX_PIXELS`], then an error is returned.
     fn try_from(slice: &'a [Srgb<u8>]) -> Result<Self, Self::Error> {
         Ok(Self::new(slice.try_into()?))
     }
@@ -178,6 +181,8 @@ impl<'a> TryFrom<&'a [Srgb<u8>]> for Okolors<'a> {
 impl<'a> TryFrom<&'a RgbImage> for Okolors<'a> {
     type Error = AboveMaxLen<u32>;
 
+    /// Try to create a [`Okolors`] from an [`RgbImage`].
+    /// If the number of pixels in the image is above [`MAX_PIXELS`], then an error is returned.
     fn try_from(image: &'a RgbImage) -> Result<Self, Self::Error> {
         Ok(Self::new(image.try_into()?))
     }
