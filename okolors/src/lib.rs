@@ -229,7 +229,25 @@ impl<'a> Okolors<'a> {
 
     /// Sets the palette size which determines the (maximum) number of colors to have in the palette.
     ///
+    /// You can pass [`u8`] values to this function (including as literals). Or, you can pass
+    /// a [`PaletteSize`]. You can also attempt to convert a [`u16`] into a [`PaletteSize`].
+    ///
     /// The default palette size is `8`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use okolors::{AboveMaxLen, Okolors, PaletteSize};
+    /// # use std::error::Error;
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// # let srgb = vec![];
+    /// Okolors::try_from(srgb.as_slice())?
+    ///     .palette_size(16)
+    ///     .palette_size(PaletteSize::try_from(100_u16)?)
+    ///     .palette_size(PaletteSize::MAX);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn palette_size(mut self, palette_size: impl Into<PaletteSize>) -> Self {
         self.palette_size = palette_size.into();
         self
