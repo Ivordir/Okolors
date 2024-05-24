@@ -58,7 +58,7 @@
 //! ```
 //! # use okolors::{AboveMaxLen, Okolors};
 //! # fn main() -> Result<(), AboveMaxLen<u32>> {
-//! # let palette_builder = Okolors::new([].as_slice().try_into()?);
+//! # let mut palette_builder = Okolors::new([].as_slice().try_into()?);
 //! let palette = palette_builder.srgb8_palette();
 //! # Ok(())
 //! # }
@@ -222,7 +222,7 @@ impl<'a> Okolors<'a> {
     /// and it is clamped to this range otherwise.
     ///
     /// The default lightness weight is `0.325`.
-    pub fn lightness_weight(mut self, lightness_weight: f32) -> Self {
+    pub fn lightness_weight(&mut self, lightness_weight: f32) -> &mut Self {
         self.lightness_weight = lightness_weight.clamp(f32::EPSILON, 1.0);
         self
     }
@@ -248,7 +248,7 @@ impl<'a> Okolors<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn palette_size(mut self, palette_size: impl Into<PaletteSize>) -> Self {
+    pub fn palette_size(&mut self, palette_size: impl Into<PaletteSize>) -> &mut Self {
         self.palette_size = palette_size.into();
         self
     }
@@ -261,7 +261,7 @@ impl<'a> Okolors<'a> {
     /// and the initial palette computed by the first histogram step will be returned.
     ///
     /// The default sampling factor is `0.5`, that is, to sample half of the colors.
-    pub fn sampling_factor(mut self, sampling_factor: f32) -> Self {
+    pub fn sampling_factor(&mut self, sampling_factor: f32) -> &mut Self {
         self.sampling_factor = sampling_factor;
         self
     }
@@ -272,7 +272,7 @@ impl<'a> Okolors<'a> {
     /// I.e., the number of pixels assigned to the palette color.
     ///
     /// By default, the palette is not sorted.
-    pub fn sort_by_frequency(mut self, sort: bool) -> Self {
+    pub fn sort_by_frequency(&mut self, sort: bool) -> &mut Self {
         self.sort_by_frequency = sort;
         self
     }
@@ -280,7 +280,7 @@ impl<'a> Okolors<'a> {
     /// Sets the seed value for the random number generator.
     ///
     /// The default seed is `0`.
-    pub fn seed(mut self, seed: u64) -> Self {
+    pub fn seed(&mut self, seed: u64) -> &mut Self {
         self.seed = seed;
         self
     }
@@ -326,7 +326,7 @@ impl<'a> Okolors<'a> {
 
     /// Computes the color palette and returns it as [`Oklab`] colors.
     #[must_use]
-    pub fn oklab_palette(self) -> Vec<Oklab> {
+    pub fn oklab_palette(&mut self) -> Vec<Oklab> {
         let result = self.oklab_quantize_result();
 
         let mut palette = if self.sort_by_frequency {
@@ -342,13 +342,13 @@ impl<'a> Okolors<'a> {
 
     /// Computes the color palette and converts it to [`Srgb<u8>`] colors.
     #[must_use]
-    pub fn srgb8_palette(self) -> Vec<Srgb<u8>> {
+    pub fn srgb8_palette(&mut self) -> Vec<Srgb<u8>> {
         internal::oklab_to_srgb(self.oklab_palette())
     }
 
     /// Computes the color palette and converts it to [`Srgb`] colors.
     #[must_use]
-    pub fn srgb_palette(self) -> Vec<Srgb> {
+    pub fn srgb_palette(&mut self) -> Vec<Srgb> {
         internal::oklab_to_srgb(self.oklab_palette())
     }
 }
@@ -361,7 +361,7 @@ impl<'a> Okolors<'a> {
     /// Smaller batch sizes are more accurate but slower to run.
     ///
     /// The default batch size is `4096`.
-    pub fn batch_size(mut self, batch_size: u32) -> Self {
+    pub fn batch_size(&mut self, batch_size: u32) -> &mut Self {
         self.batch_size = batch_size;
         self
     }
@@ -371,7 +371,7 @@ impl<'a> Okolors<'a> {
     /// The number of threads can be configured using a `rayon` thread pool.
     ///
     /// By default, single-threaded execution is used.
-    pub fn parallel(mut self, parallel: bool) -> Self {
+    pub fn parallel(&mut self, parallel: bool) -> &mut Self {
         self.parallel = parallel;
         self
     }
