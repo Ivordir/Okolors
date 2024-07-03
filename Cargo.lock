@@ -348,7 +348,7 @@ dependencies = [
 
 [[package]]
 name = "okolors"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "image",
  "palette",
@@ -357,7 +357,7 @@ dependencies = [
 
 [[package]]
 name = "okolors-bin"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "clap",
  "colored",

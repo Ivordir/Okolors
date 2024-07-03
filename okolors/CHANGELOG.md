@@ -1,5 +1,15 @@
 # Changelog
 
+# v0.8.0
+
+## Breaking
+- Methods on the `Okolors` builder struct now take references to `self` instead of owned `self`s.
+
+## Other
+- `Okolors::palette_size` now takes `impl Into<PaletteSize>` instead of just `PaletteSize`.
+- Added re-exports for constants from `quantette`.
+- Updated/expanded documentation.
+
 # v0.7.0
 - External crates that have types present in `okolors`'s public API are now reexported (`palette` and `image`).
 - Types from `quantette` that are in the public API are also now reexported.
