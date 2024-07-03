@@ -432,9 +432,9 @@ dependencies = [
 
 [[package]]
 name = "quantette"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6c483018bede1ec4c8bee28ee52edc38292aa7bf98b89b3c3ebf953d8c08416"
+checksum = "5a3ba8b34ab55d43cea1f7c183ef3c124cb96fe935c6ec5c6d97127ee340c96e"
 dependencies = [
  "bitvec",
  "image",
