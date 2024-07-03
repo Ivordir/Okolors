@@ -66,6 +66,12 @@
 //!
 //! To clarify, the [`Oklab`] colorspace is used to quantize the colors in all cases.
 //! The methods above just determine what colorspace you want the final colors converted into.
+//!
+//! All of the color types present in the public API for this crate
+//! (like [`Srgb`] or [`Oklab`] are from the [`palette`] crate.
+//! You can check it out for more information. For example, its documentation
+//! should provide you everything you need to know to [cast](palette::cast)
+//! a `Vec<Srgb<u8>>` into a `Vec<[u8; 3]>`.
 
 #![deny(unsafe_code, unsafe_op_in_unsafe_fn)]
 #![warn(
