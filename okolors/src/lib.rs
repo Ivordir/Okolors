@@ -103,17 +103,15 @@ mod internal;
 #[cfg(feature = "_internal")]
 pub mod internal;
 
-use quantette::QuantizeOutput;
-
 #[cfg(feature = "image")]
 use image::RgbImage;
 use palette::{Oklab, Srgb};
+use quantette::QuantizeOutput;
 
 // Re-export third-party crates whose types are part of our public API
 #[cfg(feature = "image")]
 pub use image;
 pub use palette;
-
 // We have tight integration/control over `quantette`, let's re-export the types directly.
 pub use quantette::{AboveMaxLen, ColorSlice, PaletteSize, MAX_COLORS, MAX_PIXELS};
 
@@ -381,7 +379,6 @@ impl<'a> Okolors<'a> {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-
     use palette::{cast::ComponentsInto, Srgb};
 
     #[rustfmt::skip]

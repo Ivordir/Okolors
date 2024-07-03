@@ -34,12 +34,6 @@ mod cli;
 #[allow(clippy::wildcard_imports)]
 use cli::*;
 
-use std::{
-    io::{self, StdoutLock, Write},
-    process::ExitCode,
-    time::Instant,
-};
-
 use clap::Parser;
 use colored::{ColoredString, Colorize as _};
 use image::{DynamicImage, GenericImageView, ImageError};
@@ -48,6 +42,11 @@ use okolors::{
     ColorSlice,
 };
 use palette::{FromColor, Okhsl, Oklab, Srgb};
+use std::{
+    io::{self, StdoutLock, Write},
+    process::ExitCode,
+    time::Instant,
+};
 
 /// Record the running time of a function and print the elapsed time
 macro_rules! time {

@@ -4,7 +4,6 @@
 //! This module contains low level functions for use in the Okolors CLI application.
 
 use crate::{Oklab, Srgb};
-
 use palette::{
     encoding::{self, FromLinear},
     rgb::RgbStandard,

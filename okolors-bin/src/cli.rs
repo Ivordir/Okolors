@@ -1,10 +1,9 @@
 //! Specifies the CLI and handles arg parsing
 
-use std::{ops::RangeInclusive, path::PathBuf};
-
 use clap::{Parser, ValueEnum};
 use okolors::{AboveMaxLen, PaletteSize};
 use palette::Okhsl;
+use std::{ops::RangeInclusive, path::PathBuf};
 
 /// Supported output formats for the final colors
 #[derive(Copy, Clone, ValueEnum)]
