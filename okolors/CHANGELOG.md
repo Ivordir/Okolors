@@ -1,5 +1,8 @@
 # Changelog
 
+# v0.8.1
+- Bumped `quantette` dependency version to `0.3.0`.
+
 # v0.8.0
 
 ## Breaking

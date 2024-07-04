@@ -1,6 +1,6 @@
 [package]
 name = "okolors"
-version = "0.8.0"
+version = "0.8.1"
 authors = ["Ivordir <Ivordir@pm.me>"]
 edition = "2021"
 description = "Create color palettes from images by performing k-means clustering in the Oklab color space."
