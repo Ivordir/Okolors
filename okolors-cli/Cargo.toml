@@ -19,7 +19,7 @@ threads = ["okolors/threads", "rayon"]
 [dependencies]
 okolors = { path = "../okolors", default-features = false, features = ["image"] }
 palette = { workspace = true, default-features = false }
-clap = { version = "4.0.18", features = ["derive"] }
+clap = { version = "4.5.60", features = ["derive"] }
 colored = "3.1.1"
 image = { workspace = true, default-features = false, features = ["jpeg", "png", "gif", "webp", "qoi"] }
 rayon = { workspace = true, optional = true }
