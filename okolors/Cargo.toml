@@ -17,7 +17,7 @@ threads = ["quantette/threads", "rayon", "std"]
 image = ["quantette/image", "std", "dep:image"]
 
 [dependencies]
-quantette = { version = "0.5.1", default-features = false, features = ["kmeans"] }
+quantette = { version = "0.6.0", default-features = false, features = ["kmeans"] }
 palette = { workspace = true, default-features = false }
 image = { workspace = true, default-features = false, optional = true }
 rayon = { workspace = true, optional = true }
