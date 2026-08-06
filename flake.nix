@@ -18,7 +18,7 @@
         let rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml; in
         {
           devShells.default = with pkgs; mkShell {
-            packages = [ rustToolchain cargo-hack just typos ];
+            packages = [ rustToolchain rustup cargo-hack just typos ];
           };
         }
       );
