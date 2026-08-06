@@ -5,7 +5,7 @@ rust-version.workspace = true
 edition.workspace = true
 description = "Create color palettes from images by performing k-means clustering in the Oklab color space."
 repository = "https://github.com/IanManske/Okolors"
-license = "MIT OR Apache-2.0"
+license.workspace = true
 publish = false # Publish binary releases on Github
 
 [[bin]]
