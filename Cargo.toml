@@ -8,6 +8,7 @@ resolver = "3"
 [workspace.package]
 edition = "2024"
 rust-version = "1.90"
+license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 palette = { version = "0.7.6", default-features = false }
@@ -41,27 +42,40 @@ pedantic = { level = "warn", priority = -1 }
 perf = { level = "warn", priority = -1 }
 style = { level = "warn", priority = -1 }
 suspicious = { level = "warn", priority = -1 }
+allow_attributes = "warn"
+allow_attributes_without_reason = "warn"
+# Debug
+unwrap_used = "warn"
+expect_used = "warn"
+unreachable = "warn"
+panic = "warn"
+exit = "warn"
+unused_result_ok = "warn"
+string_slice = "warn"
 # Debug
 unimplemented = "warn"
 todo = "warn"
 dbg_macro = "warn"
 use_debug = "warn"
+print_stdout = "warn"
+print_stderr = "warn"
 # Unsafe
 undocumented_unsafe_blocks = "warn"
 multiple_unsafe_ops_per_block = "warn"
 # Clarity
 str_to_string = "warn"
 string_to_string = "warn"
-string_slice = "warn"
+string_add = "warn"
 suspicious_xor_used_as_pow = "warn"
+precedence_bits = "warn"
 # Style
 unneeded_field_pattern = "warn"
 unnecessary_self_imports = "warn"
 self_named_module_files = "warn"
 unused_trait_names = "warn"
+empty_structs_with_brackets = "warn"
 if_then_some_else_none = "warn"
 needless_raw_strings = "warn"
-precedence_bits = "warn"
 ref_patterns = "warn"
 semicolon_inside_block = "warn"
 wildcard_enum_match_arm = "warn"
@@ -74,7 +88,6 @@ partial_pub_fields = "warn"
 tests_outside_test_module = "warn"
 # Allow some pedantic lints
 many_single_char_names = "allow"
-module_name_repetitions = "allow"
 must_use_candidate = "allow"
 semicolon_if_nothing_returned = "allow"
 unreadable_literal = "allow"

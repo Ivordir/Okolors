@@ -1,17 +1,9 @@
-#![warn(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::unreachable,
-    clippy::panic,
-    clippy::unused_result_ok
-)]
+#![allow(clippy::print_stdout, clippy::print_stderr, reason = "CLI program")]
 
 mod cli;
 
-#[allow(clippy::wildcard_imports)]
-use cli::*;
-
 use clap::Parser as _;
+use cli::{Colorize, Format, LIGHTNESS_SCALE, Options, Sort};
 use colored::{ColoredString, Colorize as _};
 use image::{
     ImageError, RgbImage,
@@ -59,7 +51,7 @@ fn main() -> ExitCode {
         // See: https://github.com/rust-lang/rust/issues/97889
 
         let default = SigAction::new(SigHandler::SigDfl, SaFlags::empty(), SigSet::empty());
-        #[allow(unsafe_code, clippy::expect_used)]
+        #[expect(unsafe_code, clippy::expect_used, reason = "loud crash is desired")]
         // Safety: setting default handler on valid signal
         unsafe { sigaction(Signal::SIGPIPE, &default) }.expect("set default SIGPIPE handler");
     }
@@ -68,7 +60,7 @@ fn main() -> ExitCode {
 
     #[cfg(feature = "threads")]
     let result = {
-        #[allow(clippy::expect_used)]
+        #[expect(clippy::expect_used, reason = "loud crash is desired")]
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(usize::from(options.threads))
             .build()
@@ -258,5 +250,4 @@ fn print_colors_line(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {}
