@@ -9,6 +9,12 @@ pub enum Format {
     Hex,
     /// sRGB (r,g,b) triple
     Rgb,
+    /// Oklab (l,a,b) triple
+    Oklab,
+    /// Oklch (l,c,h) triple
+    Oklch,
+    /// Okhsl (h,s,l) triple
+    Okhsl,
     /// Whitespace with true color background
     Swatch,
 }

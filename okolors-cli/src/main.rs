@@ -18,7 +18,7 @@ use image::{
     error::{LimitError, LimitErrorKind},
 };
 use okolors::{KmeansOptions, Okolors};
-use palette::{FromColor as _, Okhsl, Oklab, Srgb};
+use palette::{FromColor as _, Okhsl, Oklab, Oklch, Srgb};
 use std::{
     io::{self, StdoutLock, Write as _},
     process::ExitCode,
@@ -196,10 +196,31 @@ fn print_palette(colors: &mut [Okhsl], options: &Options) -> io::Result<()> {
         None => |s, _, _, _| s,
     };
 
-    let format: fn(Srgb<u8>) -> _ = match options.format {
-        Format::Hex => |color| format!("{color:X}"),
-        Format::Rgb => |color| format!("({},{},{})", color.red, color.green, color.blue),
-        Format::Swatch => |_| "   ".into(),
+    let format: fn(Okhsl, Srgb<u8>) -> _ = match options.format {
+        Format::Hex => |_, color| format!("{color:X}"),
+        Format::Rgb => |_, color| format!("({},{},{})", color.red, color.green, color.blue),
+        Format::Oklab => |color, _| {
+            let color = Oklab::from_color(color);
+            format!("({},{},{})", color.l, color.a, color.b)
+        },
+        Format::Oklch => |color, _| {
+            let color = Oklch::from_color(color);
+            format!(
+                "({},{},{})",
+                color.l,
+                color.chroma,
+                color.hue.into_positive_degrees(),
+            )
+        },
+        Format::Okhsl => |color, _| {
+            format!(
+                "({},{},{})",
+                color.hue.into_positive_degrees(),
+                color.saturation,
+                color.lightness,
+            )
+        },
+        Format::Swatch => |_, _| "   ".into(),
     };
 
     let stdout = &mut io::stdout().lock();
@@ -220,15 +241,15 @@ fn print_colors_line(
     stdout: &mut StdoutLock<'_>,
     colors: &[Okhsl],
     delimiter: &str,
-    format: fn(Srgb<u8>) -> String,
+    format: fn(Okhsl, Srgb<u8>) -> String,
     colorize: fn(ColoredString, u8, u8, u8) -> ColoredString,
 ) -> io::Result<()> {
     let str = colors
         .iter()
-        .map(|&color| {
-            let color = Srgb::from_color(color).into_format();
-            let text = format(color).into();
-            colorize(text, color.red, color.green, color.blue).to_string()
+        .map(|&okhsl| {
+            let rgb = Srgb::from_color(okhsl).into_format();
+            let text = format(okhsl, rgb).into();
+            colorize(text, rgb.red, rgb.green, rgb.blue).to_string()
         })
         .collect::<Vec<_>>()
         .join(delimiter);
