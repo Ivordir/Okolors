@@ -33,7 +33,7 @@ jobs:
           components: clippy
       - uses: taiki-e/install-action@1d76762916ba18e4f0c3b2f71fee3da83a279745 # v2.62.41
         with:
-          tool: cargo-hack@0.6.39
+          tool: cargo-hack@0.6.45
       - run: cargo hack --locked --rust-version --feature-powerset --skip default clippy -- -D warnings
 
   docs:
@@ -64,5 +64,5 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: taiki-e/install-action@1d76762916ba18e4f0c3b2f71fee3da83a279745 # v2.62.41
         with:
-          tool: cargo-hack@0.6.39
+          tool: cargo-hack@0.6.45
       - run: cargo hack -p okolors --target wasm32-unknown-unknown --locked --rust-version --feature-powerset --exclude-all-features --skip default,std,threads,image clippy -- -D warnings
