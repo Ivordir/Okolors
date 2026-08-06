@@ -66,18 +66,6 @@
 //! should provide you everything you need to know to [cast](palette::cast)
 //! a `Vec<Srgb<u8>>` into a `Vec<[u8; 3]>` or vice versa.
 
-#![warn(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::unreachable,
-    clippy::panic,
-    clippy::exit,
-    clippy::unused_result_ok,
-    clippy::print_stdout,
-    clippy::print_stderr,
-    missing_docs
-)]
-
 pub mod deps;
 
 // We have tight integration/control over `quantette`, let's re-export the types directly.
@@ -265,8 +253,8 @@ impl<'a> Okolors<'a> {
         self
     }
 
+    #[expect(clippy::missing_panics_doc, reason = "expects should never trigger")]
     /// Computes the color palette and returns it as [`Oklab`] colors.
-    #[allow(clippy::missing_panics_doc)]
     #[must_use]
     pub fn oklab_palette(&self) -> Vec<Oklab> {
         fn finalize(
@@ -320,7 +308,7 @@ impl<'a> Okolors<'a> {
                     .palette_mut()
                     .par_iter_mut()
                     .for_each(|c| c.l *= lightness_weight);
-                #[allow(clippy::expect_used)]
+                #[expect(clippy::expect_used, reason = "guarded by if above")]
                 let centroids = WuF32x3::run_indexed_image_counts_par(&image, binner)
                     .expect("non-empty image")
                     .palette(palette_size);
@@ -331,7 +319,7 @@ impl<'a> Okolors<'a> {
                     .as_mut_slice()
                     .par_iter_mut()
                     .for_each(|c| c.l *= lightness_weight);
-                #[allow(clippy::expect_used)]
+                #[expect(clippy::expect_used, reason = "guarded by if above")]
                 let centroids = WuF32x3::run_image_par(image.as_ref(), binner)
                     .expect("non-empty image")
                     .palette(palette_size);
@@ -346,7 +334,7 @@ impl<'a> Okolors<'a> {
             for c in image.palette_mut() {
                 c.l *= lightness_weight;
             }
-            #[allow(clippy::expect_used)]
+            #[expect(clippy::expect_used, reason = "guarded by if above")]
             let centroids = WuF32x3::run_indexed_image_counts(&image, binner)
                 .expect("non-empty image")
                 .palette(palette_size);
@@ -356,7 +344,7 @@ impl<'a> Okolors<'a> {
             for c in image.as_mut_slice() {
                 c.l *= lightness_weight;
             }
-            #[allow(clippy::expect_used)]
+            #[expect(clippy::expect_used, reason = "guarded by if above")]
             let centroids = WuF32x3::run_image(image.as_ref(), binner)
                 .expect("non-empty image")
                 .palette(palette_size);
